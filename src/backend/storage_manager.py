@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
+import csv
 import decouple
 import pymongo
+import StringIO
 from typing import Annotated
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, File
 
 storage_manager = FastAPI()
 
@@ -59,14 +61,31 @@ async def what(pattern):
 
 @storage_manager.get("/list")
 async def list_contents(location: int):
+    """List everything stored in the given location."""
     return {"location": "placeholder"}
 
 @storage_manager.put("/store")
 async def store(location: int,
-                items str):
+                item str):
+    """Mark that the item is stored in the given location."""
     return {"result": "not stored"}
 
 @storage_manager.post("/new")
-async def new_item(name: str, item_type: str):
+async def new_item(name: str, item_type: str, item_id: int=0):
+    """Create a new item.
+    An item ID may be given (for example, from a barcode label you have stuck onto something)
+    but if it is not given, one will be created for it."""
     database = ensure_database()
     return {'result': "not done"}
+
+@storage_manager.post("/load")
+async def load_table(table_bytes: Annotated[bytes, File()]):
+    """Load data into the database from a CSV POST body."""
+    for row in csv.DictReader(StringIO.StringIO(table_bytes)):
+        print("got row", row)
+    return {"result": "not implemented")
+
+@storage_manager.get("/dump")
+async def dump_table():
+    """Return the database contents as CSV text."""
+    return {"result": "not implemented, should return CSV text instead of JSON here")

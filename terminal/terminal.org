@@ -1,0 +1,32 @@
+# Makespace storage terminal
+
+This is a handheld device for scanning Makespace storage barcodes and
+performing some operations based on them.
+
+## Actions
+
+ - scan a barcode and describe the thing it is on
+
+ - scan a series of barcodes, of which the last is a location, to
+   indicate that all the other items are now in that location
+
+## Design
+
+A handheld computer with wifi, with a barcode scanner, display, and
+keypad, and a battery and wireless charging receiver.
+
+ |----------------------------+---------------------------------------------------+-------|
+ | Part                       | Example URL                                       | Price |
+ |----------------------------+---------------------------------------------------+-------|
+ | Raspberry Pi Zero 2W       | https://thepihut.com/products/raspberry-pi-zero-2 | 17.30 |
+ | Barcode scan engine        | https://www.aliexpress.com/item/32865222900.html  |  7.36 |
+ | Display                    | https://www.amazon.co.uk/dp/B0FCRWPFSB            |  7.50 |
+ | Keypad                     | https://www.amazon.co.uk/dp/B0CN6FDW7F            |  4.50 |
+ | Battery                    |                                                   |       |
+ | Battery booster            | https://www.adafruit.com/product/4654             | $3.95 |
+ | Battery charge controller  |                                                   |       |
+ | Wireless charging receiver |                                                   |       |
+ | Case                       |                                                   |       |
+ |----------------------------+---------------------------------------------------+-------|
+
+See also https://www.youtube.com/watch?v=opYVS0EXZIg for battery stuff

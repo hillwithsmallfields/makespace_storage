@@ -11,10 +11,11 @@ storage_manager = FastAPI()
 
 _database_client = None
 _inventory = None
+_types = None
 
-def inventory():
+def _ensure_database():
     """Ensure that we have a connection to the database."""
-    global _database_client, _inventory
+    global _database_client
     if not _database_client:
         _database_client = pymongo.MongoClient(
             uri,
@@ -22,11 +23,54 @@ def inventory():
             password=urllib.parse.quote_plus(decouple.config('MONGOPASSWORD', "")),
             authSource=db_config['database_name'],
             authMechanism='SCRAM-SHA-1')
+        if _database_client is None:
+            raise ConnectionError("Could not connect to database")
+    return _database_client
+
+def types():
+    """Get the types collection from the database.
+
+    Each row must define a 'name', and may define:
+    - parent (a parent type)
+    - preposition (if this is a type of storage location)
+    """
+    global _types
+    if not _types:
+        _types = _ensure_database()['types']
+        if _types is None:
+            raise ValueError("Database does not contain a type hierarchy definition")
+    return _types
+
+def inventory():
+    """Get the inventory collection from the database.
+
+    Each row must define:
+    - item-id
+    - name
+    - type
+    - location (except for top-level locations)
+    """
+    global _inventory
     if not _inventory:
-        _inventory = database_client['inventory']
+        _inventory = _ensure_database()['inventory']
         if _inventory is None:
-            raise ConnectionError
+            raise ValueError("Database does not contain an inventory")
     return _inventory
+
+def stock():
+    """Get the stock collection from the database.
+
+    Each row must define:
+    - name
+    - quantity
+    - location
+    """
+    global _stock
+    if not _stock:
+        _stock = _ensure_database()['stock']
+        if _stock is None:
+            raise ValueError("Database does not contain a stock table")
+    return _stock
 
 def name_to_id(name):
     """Return the item_id of the item with the given name."""
@@ -40,19 +84,36 @@ def contents(location_id):
     """Return the contents of the given location."""
     return inventory().find({'location': location_id})
 
-def position(location_id, item_id):
+def set_location(location_id, item_id):
     """Set the location of an item."""
     inventory().update({'item_id': item_id}, {'location': location_id}, upsert=True)
+
+def full_location(item_id):
+    """Return the full hierarchical location data for an item."""
+    result = []
+    inv = inventory()
+    item = inventory.find_one({'item_id': item_id})
+    while (enclosing := item.get('location')):
+        result.append(enclosing)
+        item = enclosing
+    return result
+
+def location_string(full_loc, sep=", "):
+    """Return a string summarising the given hierarchical location data."""
+    typedefs = types()
+    return sep.join(f"{typesdefs[surrounder['type']]['preposition']} {surrounder['name']]}"
+                    for surrounder in full_loc)
 
 @storage_manager.get("/")
 async def root():
     return {"message": "This is the makespace.org storage manager."}
 
-@storage_manager.get("/where")
-async def where(item):
+@storage_manager.get("/where/{item}")
+async def where(item, full=False):
     """Return where an item is located.
     The item may be specified by name or by id (barcode)."""
-    return {"location": "placeholder"}
+    location = full_location(item if isinstance(item, int) else id_to_name(item))
+    return {"location": location if full else location_string(location)}
 
 @storage_manager.get("/what")
 async def what(pattern):

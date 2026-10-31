@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
 import csv
+from typing import Annotated
 import decouple
 import pymongo
 import StringIO
-from typing import Annotated
 from fastapi import FastAPI, Query, File
 
 storage_manager = FastAPI()
@@ -19,9 +19,9 @@ def _ensure_database():
     if not _database_client:
         _database_client = pymongo.MongoClient(
             uri,
-            username=urllib.parse.quote_plus(db_config.get('user', "makers")),
+            username=urllib.parse.quote_plus(decouple.config('user', "makers")),
             password=urllib.parse.quote_plus(decouple.config('MONGOPASSWORD', "")),
-            authSource=db_config['database_name'],
+            authSource=decouple.config('database_name'),
             authMechanism='SCRAM-SHA-1')
         if _database_client is None:
             raise ConnectionError("Could not connect to database")
@@ -92,16 +92,14 @@ def full_location(item_id):
     """Return the full hierarchical location data for an item."""
     result = []
     inv = inventory()
-    item = inventory.find_one({'item_id': item_id})
-    while (enclosing := item.get('location')):
+    while (item := inv.find_one({'item_id': item_id}).get('location')):
         result.append(enclosing)
-        item = enclosing
     return result
 
 def location_string(full_loc, sep=", "):
     """Return a string summarising the given hierarchical location data."""
     typedefs = types()
-    return sep.join(f"{typesdefs[surrounder['type']]['preposition']} {surrounder['name']]}"
+    return sep.join(f"{typesdefs[surrounder['type']]['preposition']} {surrounder['name']}"
                     for surrounder in full_loc)
 
 @storage_manager.get("/")
@@ -125,9 +123,14 @@ async def list_contents(location: int):
     """List everything stored in the given location."""
     return {"location": "placeholder"}
 
+@storage_manager.get("/map")
+async def map_contents(location: int=0, items=None, format='svg'):
+    """Produce a visual representation of where things are."""
+    pass
+
 @storage_manager.put("/store")
 async def store(location: int,
-                item str):
+                item: str):
     """Mark that the item is stored in the given location."""
     return {"result": "not stored"}
 
@@ -144,9 +147,9 @@ async def load_table(table_bytes: Annotated[bytes, File()]):
     """Load data into the database from a CSV POST body."""
     for row in csv.DictReader(StringIO.StringIO(table_bytes)):
         print("got row", row)
-    return {"result": "not implemented")
+    return {"result": "not implemented"}
 
 @storage_manager.get("/dump")
 async def dump_table():
     """Return the database contents as CSV text."""
-    return {"result": "not implemented, should return CSV text instead of JSON here")
+    return {"result": "not implemented, should return CSV text instead of JSON here"}

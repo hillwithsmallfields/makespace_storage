@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import csv
+from enum import Enum
 from typing import Annotated
 import decouple
 import pymongo
@@ -88,12 +89,14 @@ def set_location(location_id, item_id):
     """Set the location of an item."""
     inventory().update({'item_id': item_id}, {'location': location_id}, upsert=True)
 
-def full_location(item_id):
+def full_location(item):
     """Return the full hierarchical location data for an item."""
     result = []
     inv = inventory()
-    while (item := inv.find_one({'item_id': item_id}).get('location')):
-        result.append(enclosing)
+    if isinstance(item, int):
+        item = inv.find_one({'item_id': item})
+    while (item := inv.find_one({'item_id': item['item_id']}).get('location')):
+        result.append(item)
     return result
 
 def location_string(full_loc, sep=", "):
@@ -116,23 +119,37 @@ async def where(item, full=False):
 @storage_manager.get("/what")
 async def what(pattern):
     """List everything with a name matching the given pattern."""
-    return {"matches": ["placeholder"]}
+    return {"matches": ["placeholder"]} # TODO
 
 @storage_manager.get("/list")
 async def list_contents(location: int):
     """List everything stored in the given location."""
-    return {"location": "placeholder"}
+    return {"location": "placeholder"} # TODO
+
+class MapFormat(str, Enum):
+    SVG = "svg"
+    JSON = "json"
+    OPENSCAD = "openscad"
 
 @storage_manager.get("/map")
-async def map_contents(location: int=0, items=None, format='svg'):
-    """Produce a visual representation of where things are."""
-    pass
+async def map_contents(location: int=0, items=None, format:MapFormat=MapFormat.JSON):
+    """Produce a visual representation of where things are within a location.
+    A collection of items to emphasize may be given."""
+    # TODO: get the items within the location, and make their coordinates relative to the location
+    # TODO: set the type of the resulting data
+    match format:
+        case MapFormat.SVG:
+            return Response(content=data, media_type="image/svg+xml") # TODO
+        case MapFormat.JSON:
+            return data         # TODO
+        case MapFormat.OPENSCAD:
+            return Response(content=data, media_type="application/x-openscad") # TODO
 
 @storage_manager.put("/store")
 async def store(location: int,
                 item: str):
     """Mark that the item is stored in the given location."""
-    return {"result": "not stored"}
+    return {"result": "not stored"} # TODO
 
 @storage_manager.post("/new")
 async def new_item(name: str, item_type: str, item_id: int=0):
@@ -140,16 +157,16 @@ async def new_item(name: str, item_type: str, item_id: int=0):
     An item ID may be given (for example, from a barcode label you have stuck onto something)
     but if it is not given, one will be created for it."""
     database = ensure_database()
-    return {'result': "not done"}
+    return {'result': "not done"} # TODO
 
 @storage_manager.post("/load")
 async def load_table(table_bytes: Annotated[bytes, File()]):
     """Load data into the database from a CSV POST body."""
     for row in csv.DictReader(StringIO.StringIO(table_bytes)):
         print("got row", row)
-    return {"result": "not implemented"}
+    return {"result": "not implemented"} # TODO
 
 @storage_manager.get("/dump")
 async def dump_table():
     """Return the database contents as CSV text."""
-    return {"result": "not implemented, should return CSV text instead of JSON here"}
+    return {"result": "not implemented, should return CSV text instead of JSON here"} # TODO

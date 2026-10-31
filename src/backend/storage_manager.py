@@ -32,7 +32,7 @@ def types():
     """Get the types collection from the database.
 
     Each row must define a 'name', and may define:
-    - parent (a parent type)
+    - parent (a parent type, except at the top level)
     - preposition (if this is a type of storage location)
     """
     global _types
@@ -49,7 +49,12 @@ def inventory():
     - item-id
     - name
     - type
-    - location (except for top-level locations)
+    - location (as an item-id, except for top-level locations)
+
+    Items may also define:
+    - dimensions as w*d*h where width and depth are as seen from the front
+    - level (as a level count above the floor, e.g. in a set of shelves)
+    - square (the floor square they are on, such as H3)
     """
     global _inventory
     if not _inventory:
@@ -120,6 +125,12 @@ async def where(item, full=False):
 async def what(pattern):
     """List everything with a name matching the given pattern."""
     return {"matches": ["placeholder"]} # TODO
+
+@storage_manager.get("/attribute/{item}/{attr}")
+def attribute(item, attr):
+    """Return an attribute of an item.
+    This may be defined by the item itself, or in its type hierarchy."""
+    return {attr, value}        # TODO
 
 @storage_manager.get("/list")
 async def list_contents(location: int):

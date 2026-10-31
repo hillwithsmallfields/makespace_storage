@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 
+"""API server for managing where we store physical things at makespace.org."""
+
 import csv
-from enum import Enum
-from typing import Annotated
+import io
+import urllib
 import decouple
 import pymongo
-import io
-from fastapi import FastAPI, Query, File
+from fastapi import FastAPI, HTTPException, Request
 
 storage_manager = FastAPI()
 
@@ -18,15 +19,16 @@ def _ensure_database():
     """Ensure that we have a connection to the database."""
     global _database_client
     if not _database_client:
+        db_name = decouple.config('DATABASE_NAME', 'makespace-storage')
         _database_client = pymongo.MongoClient(
-            uri,
+            decouple.config('MONGOURI', "mongodb://localhost:27017/"),
             username=urllib.parse.quote_plus(decouple.config('MONGOUSER', "makespace")),
             password=urllib.parse.quote_plus(decouple.config('MONGOPASSWORD', "")),
-            authSource=decouple.config('DATABASE_NAME'),
+            authSource=db_name,
             authMechanism='SCRAM-SHA-1')
         if _database_client is None:
             raise ConnectionError("Could not connect to database")
-    return _database_client
+    return _database_client[db_name]
 
 def types():
     """Get the types collection from the database.
@@ -36,10 +38,9 @@ def types():
     - preposition (if this is a type of storage location)
     """
     global _types
-    if not _types:
+    if _types is None:
         _types = _ensure_database()['types']
-        if _types is None:
-            raise ValueError("Database does not contain a type hierarchy definition")
+        # I get an error from this:
         _types.create_index('name', unique=True) # ignored if it already exists
     return _types
 
@@ -58,10 +59,8 @@ def inventory():
     - square (the floor square they are on, such as H3)
     """
     global _inventory
-    if not _inventory:
+    if _inventory is None:
         _inventory = _ensure_database()['inventory']
-        if _inventory is None:
-            raise ValueError("Database does not contain an inventory")
         _inventory.create_index('name', unique=True) # ignored if it already exists
     return _inventory
 
@@ -74,10 +73,8 @@ def stock():
     - location
     """
     global _stock
-    if not _stock:
+    if _stock is None:
         _stock = _ensure_database()['stock']
-        if _stock is None:
-            raise ValueError("Database does not contain a stock table")
         _stock.create_index('name', unique=True) # ignored if it already exists
     return _stock
 
@@ -142,7 +139,8 @@ async def list_contents(location: int):
 
 @storage_manager.get("/map")
 async def map_contents(location: int=0, items=None):
-    """Return data suitable for making a visual representation of where things are within a location.
+    """Return data suitable for making a visual representation
+    of where things are within a location.
     A collection of items to emphasize may be given."""
     # TODO: get the items within the location, and make their coordinates relative to the location
     # TODO: set the type of the resulting data
@@ -162,14 +160,17 @@ async def new_item(name: str, item_type: str, barcode: int=0):
     database = ensure_database()
     return {'result': "not done"} # TODO
 
-def load_table(collection, table_bytes: Annotated[bytes, File()]):
+def load_table(collection, text):
     """Load data into a database collection from a CSV POST body."""
     count = 0
-    with io.StringIO(table_bytes) as instream:
-        for row in csv.DictReader(instream):
+    try:
+        for row in csv.DictReader(io.StringIO(text)):
             print("got row", row)
-            inv.update({'name': row['name']}, row, upsert=True)
+            collection.update_one({'name': row['name']}, {'$set': row}, upsert=True)
             count += 1
+    except Exception as e:
+        print("problem:", e)
+        raise HTTPException(status_code=500, detail='Something went wrong')
     return {"result": f"inserted or updated {count} entries"}
 
 def dump_table(collection, left_keys):
@@ -187,9 +188,10 @@ def dump_table(collection, left_keys):
         return outstream.getvalue()
 
 @storage_manager.post("/load-types")
-async def load_types(table_bytes: Annotated[bytes, File()]):
+async def load_types(request: Request):
     """Load data into the database types from a CSV POST body."""
-    return load_table(types(), table_bytes)
+    return load_table(types(),
+                      (await request.body()).decode("utf-8"))
 
 @storage_manager.get("/dump-types")
 async def dump_types():
@@ -197,9 +199,9 @@ async def dump_types():
     dump_table(types(), left_keys=['barcode', 'name'])
 
 @storage_manager.post("/load-inventory")
-async def load_inventory(table_bytes: Annotated[bytes, File()]):
+async def load_inventory(request: Request):
     """Load data into the database inventory from a CSV POST body."""
-    return load_table(inventory(), table_bytes)
+    return load_table(inventory(), (await request.body()).decode("utf-8"))
 
 @storage_manager.get("/dump-inventory")
 async def dump_inventory():
@@ -207,9 +209,9 @@ async def dump_inventory():
     return dump_table(inventory(), left_keys=['barcode', 'name'])
 
 @storage_manager.post("/load-stock")
-async def load_stock(table_bytes: Annotated[bytes, File()]):
+async def load_stock(request: Request):
     """Load data into the database stock from a CSV POST body."""
-    return load_table(stock(), table_bytes)
+    return load_table(stock(), (await request.body()).decode("utf-8"))
 
 @storage_manager.get("/dump-stock")
 async def dump_stock():

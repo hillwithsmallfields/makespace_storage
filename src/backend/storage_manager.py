@@ -5,7 +5,7 @@ from enum import Enum
 from typing import Annotated
 import decouple
 import pymongo
-import StringIO
+import io
 from fastapi import FastAPI, Query, File
 
 storage_manager = FastAPI()
@@ -20,9 +20,9 @@ def _ensure_database():
     if not _database_client:
         _database_client = pymongo.MongoClient(
             uri,
-            username=urllib.parse.quote_plus(decouple.config('user', "makers")),
+            username=urllib.parse.quote_plus(decouple.config('MONGOUSER', "makespace")),
             password=urllib.parse.quote_plus(decouple.config('MONGOPASSWORD', "")),
-            authSource=decouple.config('database_name'),
+            authSource=decouple.config('DATABASE_NAME'),
             authMechanism='SCRAM-SHA-1')
         if _database_client is None:
             raise ConnectionError("Could not connect to database")
@@ -40,16 +40,17 @@ def types():
         _types = _ensure_database()['types']
         if _types is None:
             raise ValueError("Database does not contain a type hierarchy definition")
+        _types.create_index('name', unique=True) # ignored if it already exists
     return _types
 
 def inventory():
     """Get the inventory collection from the database.
 
     Each row must define:
-    - item-id
+    - barcode
     - name
     - type
-    - location (as an item-id, except for top-level locations)
+    - location (as an barcode, except for top-level locations)
 
     Items may also define:
     - dimensions as w*d*h where width and depth are as seen from the front
@@ -61,6 +62,7 @@ def inventory():
         _inventory = _ensure_database()['inventory']
         if _inventory is None:
             raise ValueError("Database does not contain an inventory")
+        _inventory.create_index('name', unique=True) # ignored if it already exists
     return _inventory
 
 def stock():
@@ -76,31 +78,32 @@ def stock():
         _stock = _ensure_database()['stock']
         if _stock is None:
             raise ValueError("Database does not contain a stock table")
+        _stock.create_index('name', unique=True) # ignored if it already exists
     return _stock
 
 def name_to_id(name):
-    """Return the item_id of the item with the given name."""
-    return inventory().find_one({'name': name})['item_id']
+    """Return the barcode of the item with the given name."""
+    return inventory().find_one({'name': name})['barcode']
 
-def id_to_name(item_id):
-    """Return the name of an item with the given item_id."""
-    return inventory().find_one({'item_id': item_id})['name']
+def id_to_name(barcode):
+    """Return the name of an item with the given barcode."""
+    return inventory().find_one({'barcode': barcode})['name']
 
 def contents(location_id):
     """Return the contents of the given location."""
     return inventory().find({'location': location_id})
 
-def set_location(location_id, item_id):
+def set_location(location_id, barcode):
     """Set the location of an item."""
-    inventory().update({'item_id': item_id}, {'location': location_id}, upsert=True)
+    inventory().update({'barcode': barcode}, {'location': location_id}, upsert=True)
 
 def full_location(item):
     """Return the full hierarchical location data for an item."""
     result = []
     inv = inventory()
     if isinstance(item, int):
-        item = inv.find_one({'item_id': item})
-    while (item := inv.find_one({'item_id': item['item_id']}).get('location')):
+        item = inv.find_one({'barcode': item})
+    while (item := inv.find_one({'barcode': item['barcode']}).get('location')):
         result.append(item)
     return result
 
@@ -137,24 +140,13 @@ async def list_contents(location: int):
     """List everything stored in the given location."""
     return {"location": "placeholder"} # TODO
 
-class MapFormat(str, Enum):
-    SVG = "svg"
-    JSON = "json"
-    OPENSCAD = "openscad"
-
 @storage_manager.get("/map")
-async def map_contents(location: int=0, items=None, format:MapFormat=MapFormat.JSON):
-    """Produce a visual representation of where things are within a location.
+async def map_contents(location: int=0, items=None):
+    """Return data suitable for making a visual representation of where things are within a location.
     A collection of items to emphasize may be given."""
     # TODO: get the items within the location, and make their coordinates relative to the location
     # TODO: set the type of the resulting data
-    match format:
-        case MapFormat.SVG:
-            return Response(content=data, media_type="image/svg+xml") # TODO
-        case MapFormat.JSON:
-            return data         # TODO
-        case MapFormat.OPENSCAD:
-            return Response(content=data, media_type="application/x-openscad") # TODO
+    return data         # TODO
 
 @storage_manager.put("/store")
 async def store(location: int,
@@ -163,21 +155,63 @@ async def store(location: int,
     return {"result": "not stored"} # TODO
 
 @storage_manager.post("/new")
-async def new_item(name: str, item_type: str, item_id: int=0):
+async def new_item(name: str, item_type: str, barcode: int=0):
     """Create a new item.
     An item ID may be given (for example, from a barcode label you have stuck onto something)
     but if it is not given, one will be created for it."""
     database = ensure_database()
     return {'result': "not done"} # TODO
 
-@storage_manager.post("/load")
-async def load_table(table_bytes: Annotated[bytes, File()]):
-    """Load data into the database from a CSV POST body."""
-    for row in csv.DictReader(StringIO.StringIO(table_bytes)):
-        print("got row", row)
-    return {"result": "not implemented"} # TODO
+def load_table(collection, table_bytes: Annotated[bytes, File()]):
+    """Load data into a database collection from a CSV POST body."""
+    count = 0
+    with io.StringIO(table_bytes) as instream:
+        for row in csv.DictReader(instream):
+            print("got row", row)
+            inv.update({'name': row['name']}, row, upsert=True)
+            count += 1
+    return {"result": f"inserted or updated {count} entries"}
 
-@storage_manager.get("/dump")
-async def dump_table():
-    """Return the database contents as CSV text."""
-    return {"result": "not implemented, should return CSV text instead of JSON here"} # TODO
+def dump_table(collection, left_keys):
+    """Dump data from a table into CSV form."""
+    data = collection.find({})
+    with io.StringIO() as outstream:
+        writer = csv.DictWriter(
+            outstream,
+            fieldnames=left_keys + [key
+                                    for key in set().union(*[frozenset(doc.keys()) for doc in data])
+                                    if key not in left_keys])
+        writer.writeheader()
+        for row in data:
+            writer.writerow(row)
+        return outstream.getvalue()
+
+@storage_manager.post("/load-types")
+async def load_types(table_bytes: Annotated[bytes, File()]):
+    """Load data into the database types from a CSV POST body."""
+    return load_table(types(), table_bytes)
+
+@storage_manager.get("/dump-types")
+async def dump_types():
+    """Return the database types as CSV text."""
+    dump_table(types(), left_keys=['barcode', 'name'])
+
+@storage_manager.post("/load-inventory")
+async def load_inventory(table_bytes: Annotated[bytes, File()]):
+    """Load data into the database inventory from a CSV POST body."""
+    return load_table(inventory(), table_bytes)
+
+@storage_manager.get("/dump-inventory")
+async def dump_inventory():
+    """Return the database inventory as CSV text."""
+    return dump_table(inventory(), left_keys=['barcode', 'name'])
+
+@storage_manager.post("/load-stock")
+async def load_stock(table_bytes: Annotated[bytes, File()]):
+    """Load data into the database stock from a CSV POST body."""
+    return load_table(stock(), table_bytes)
+
+@storage_manager.get("/dump-stock")
+async def dump_stock():
+    """Return the database stock as CSV text."""
+    return dump_table(stock(), left_keys=['barcode', 'name'])

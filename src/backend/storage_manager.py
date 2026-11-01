@@ -83,7 +83,10 @@ def stock():
 
 def name_to_id(name):
     """Return the barcode of the item with the given name."""
-    return inventory().find_one({'name': name})['barcode']
+    item = inventory().find_one({'name': name})
+    if item is None:
+        raise HTTPException(status_code=404, detail=f"Item {name} not found")
+    return item['barcode']
 
 def id_to_name(barcode):
     """Return the name of an item with the given barcode."""
@@ -97,20 +100,29 @@ def set_location(location_id, barcode):
     """Set the location of an item."""
     inventory().update({'barcode': barcode}, {'location': location_id}, upsert=True)
 
+def by_name(collection):
+    """Return a dictionary of a collection's contents, with the names as the keys."""
+    return {entry['name']: entry for entry in collection.find({})}
+
 def full_location(item):
-    """Return the full hierarchical location data for an item."""
+    """Return the full hierarchical location data for an item.
+    The item may be given as a barcode or a dictionary."""
     result = []
+    countdown = 8               # in case of looping types
     inv = inventory()
     if isinstance(item, int):
         item = inv.find_one({'barcode': item})
-    while (item := inv.find_one({'barcode': item['barcode']}).get('location')):
+    while (item := inv.find_one({'barcode': item['location']})):
         result.append(item)
+        countdown -= 1
+        if countdown == 0:
+            break
     return result
 
 def location_string(full_loc, sep=", "):
     """Return a string summarising the given hierarchical location data."""
-    typedefs = types()
-    return sep.join(f"{typesdefs[surrounder['type']]['preposition']} {surrounder['name']}"
+    typedefs = by_name(types())
+    return sep.join(f"{typedefs[surrounder['type']]['preposition']} {surrounder['name']}"
                     for surrounder in full_loc)
 
 @storage_manager.get("/")
@@ -121,7 +133,11 @@ async def root():
 async def where(item, full=False):
     """Return where an item is located.
     The item may be specified by name or by id (barcode)."""
-    location = full_location(item if isinstance(item, int) else id_to_name(item))
+    try:
+        barcode = int(item)
+    except ValueError:
+        barcode = name_to_id(item)
+    location = full_location(barcode)
     return {"location": location if full else location_string(location)}
 
 @storage_manager.get("/what")
@@ -163,12 +179,28 @@ async def new_item(name: str, item_type: str, barcode: int=0):
     database = ensure_database()
     return {'result': "not done"} # TODO
 
+def convert_string(raw):
+    """Convert a string to int or float if possible."""
+    try:
+        return int(raw)
+    except ValueError:
+        try:
+            return float(raw)
+        except ValueError:
+            return raw
+
+def convert_dict_entries(row):
+    """Convert strings in the data to int or float if possible."""
+    return {k: convert_string(v) for k, v in row.items()}
+
 def load_table(collection, text):
     """Load data into a database collection from a CSV POST body."""
     count = 0
     try:
         for row in csv.DictReader(io.StringIO(text)):
-            collection.update_one({'name': row['name']}, {'$set': row}, upsert=True)
+            collection.update_one({'name': row['name']},
+                                  {'$set': convert_dict_entries(row)},
+                                  upsert=True)
             count += 1
     except Exception as e:
         print("problem while uploading a data table:", e)
@@ -183,10 +215,10 @@ def dump_table(collection, left_keys):
                                 fieldnames=left_keys + [key
                                                         for key in set().union(*[frozenset(doc.keys())
                                                                                  for doc in data])
-                                                        if key not in left_keys])
+                                                        if key not in left_keys and key != '_id'])
         writer.writeheader()
         for row in data:
-            writer.writerow(row)
+            writer.writerow({k: v for k, v in row.items() if k != '_id'})
         return StreamingResponse(outstream.getvalue(),
                                  # We could put this in optionally to get browsers to download the result
                                  # but this route is probably mostly for scripted use in which case we

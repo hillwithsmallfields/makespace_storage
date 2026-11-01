@@ -157,10 +157,12 @@ async def where(item, full=False):
     return {'item': tidy_dictionary(item),
             'location': location if full else location_string(location)}
 
-@storage_manager.get("/what")
+@storage_manager.get("/what/{pattern}")
 async def what(pattern):
     """List everything with a name matching the given pattern."""
-    return {"matches": ["placeholder"]} # TODO
+    return {'matching': pattern,
+            'matches': [tidy_dictionary(x)
+                        for x in inventory().find({'name': {'$regex': pattern}})]}
 
 @storage_manager.get("/attribute/{item}/{attr}")
 def attribute(item, attr):
@@ -171,11 +173,8 @@ def attribute(item, attr):
 @storage_manager.get("/list/{location}")
 async def list_contents(location):
     """List everything stored in the given location."""
-    print("listing contents of", location)
-    things = contents(location)
-    print("contents are", things)
     return {'location': location,
-            'contents': [tidy_dictionary(x) for x in things]}
+            'contents': [tidy_dictionary(x) for x in contents(location)]}
 
 @storage_manager.get("/map")
 async def map_contents(location: int=0, items=None):

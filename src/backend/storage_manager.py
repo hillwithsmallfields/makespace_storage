@@ -3,10 +3,12 @@
 """API server for managing where we store physical things at makespace.org."""
 
 import csv
-import io
-import urllib
 import decouple
+import io
 import pymongo
+import re
+import urllib
+from bson.objectid import ObjectId
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
@@ -41,7 +43,6 @@ def types():
     global _types
     if _types is None:
         _types = _ensure_database()['types']
-        # I get an error from this:
         _types.create_index('name', unique=True) # ignored if it already exists
     return _types
 
@@ -92,9 +93,16 @@ def id_to_name(barcode):
     """Return the name of an item with the given barcode."""
     return inventory().find_one({'barcode': barcode})['name']
 
-def contents(location_id):
-    """Return the contents of the given location."""
-    return inventory().find({'location': location_id})
+def lookup(name_or_barcode):
+    """Find an inventory item by name or by barcode."""
+    return (inventory().find_one({'barcode': int(name_or_barcode)})
+            if isinstance(name_or_barcode, int) or re.match('^[0-9]+$', name_or_barcode)
+            else inventory().find_one({'name': name_or_barcode}))
+
+def contents(location):
+    """Return the contents of the given location.
+    The location may be given by barcode or name."""
+    return list(inventory().find({'location': lookup(location)['barcode']}))
 
 def set_location(location_id, barcode):
     """Set the location of an item."""
@@ -103,6 +111,17 @@ def set_location(location_id, barcode):
 def by_name(collection):
     """Return a dictionary of a collection's contents, with the names as the keys."""
     return {entry['name']: entry for entry in collection.find({})}
+
+def strip_mongo_id(dictionary):
+    """Return a copy of a dictionary with any _id field removed.
+    The _id values are not JSON-serialisable."""
+    return {k: v for k, v in dictionary.items() if k != '_id'}
+
+def tidy_dictionary(dictionary):
+    """Return a copy of a dictionary with empty strings removed.
+    ObjectIds are also removed."""
+    return {k: v for k, v in dictionary.items()
+            if v != "" and not isinstance(v, ObjectId)}
 
 def full_location(item):
     """Return the full hierarchical location data for an item.
@@ -113,7 +132,7 @@ def full_location(item):
     if isinstance(item, int):
         item = inv.find_one({'barcode': item})
     while (item := inv.find_one({'barcode': item['location']})):
-        result.append(item)
+        result.append(tidy_dictionary(item))
         countdown -= 1
         if countdown == 0:
             break
@@ -133,12 +152,10 @@ async def root():
 async def where(item, full=False):
     """Return where an item is located.
     The item may be specified by name or by id (barcode)."""
-    try:
-        barcode = int(item)
-    except ValueError:
-        barcode = name_to_id(item)
-    location = full_location(barcode)
-    return {"location": location if full else location_string(location)}
+    item = lookup(item)
+    location = full_location(item)
+    return {'item': tidy_dictionary(item),
+            'location': location if full else location_string(location)}
 
 @storage_manager.get("/what")
 async def what(pattern):
@@ -151,10 +168,14 @@ def attribute(item, attr):
     This may be defined by the item itself, or in its type hierarchy."""
     return {attr, value}        # TODO
 
-@storage_manager.get("/list")
-async def list_contents(location: int):
+@storage_manager.get("/list/{location}")
+async def list_contents(location):
     """List everything stored in the given location."""
-    return {"location": "placeholder"} # TODO
+    print("listing contents of", location)
+    things = contents(location)
+    print("contents are", things)
+    return {'location': location,
+            'contents': [tidy_dictionary(x) for x in things]}
 
 @storage_manager.get("/map")
 async def map_contents(location: int=0, items=None):

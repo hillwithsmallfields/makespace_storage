@@ -8,6 +8,7 @@ import urllib
 import decouple
 import pymongo
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import StreamingResponse
 
 storage_manager = FastAPI()
 
@@ -18,8 +19,8 @@ _types = None
 def _ensure_database():
     """Ensure that we have a connection to the database."""
     global _database_client
+    db_name = decouple.config('DATABASE_NAME', 'makespace-storage')
     if not _database_client:
-        db_name = decouple.config('DATABASE_NAME', 'makespace-storage')
         _database_client = pymongo.MongoClient(
             decouple.config('MONGOURI', "mongodb://localhost:27017/"),
             username=urllib.parse.quote_plus(decouple.config('MONGOUSER', "makespace")),
@@ -48,13 +49,15 @@ def inventory():
     """Get the inventory collection from the database.
 
     Each row must define:
-    - barcode
+    - barcode (the primary identifier in this system)
     - name
     - type
-    - location (as an barcode, except for top-level locations)
+    - location (as a barcode, except for top-level locations)
 
     Items may also define:
-    - dimensions as w*d*h where width and depth are as seen from the front
+    - width (in metres; this describes the side facing you by default)
+    - length (in metres; this describes the side going to/from you by default)
+    - height (in metres)
     - level (as a level count above the floor, e.g. in a set of shelves)
     - square (the floor square they are on, such as H3)
     """
@@ -165,27 +168,31 @@ def load_table(collection, text):
     count = 0
     try:
         for row in csv.DictReader(io.StringIO(text)):
-            print("got row", row)
             collection.update_one({'name': row['name']}, {'$set': row}, upsert=True)
             count += 1
     except Exception as e:
-        print("problem:", e)
+        print("problem while uploading a data table:", e)
         raise HTTPException(status_code=500, detail='Something went wrong')
     return {"result": f"inserted or updated {count} entries"}
 
 def dump_table(collection, left_keys):
     """Dump data from a table into CSV form."""
-    data = collection.find({})
+    data = list(collection.find({}))
     with io.StringIO() as outstream:
-        writer = csv.DictWriter(
-            outstream,
-            fieldnames=left_keys + [key
-                                    for key in set().union(*[frozenset(doc.keys()) for doc in data])
-                                    if key not in left_keys])
+        writer = csv.DictWriter(outstream,
+                                fieldnames=left_keys + [key
+                                                        for key in set().union(*[frozenset(doc.keys())
+                                                                                 for doc in data])
+                                                        if key not in left_keys])
         writer.writeheader()
         for row in data:
             writer.writerow(row)
-        return outstream.getvalue()
+        return StreamingResponse(outstream.getvalue(),
+                                 # We could put this in optionally to get browsers to download the result
+                                 # but this route is probably mostly for scripted use in which case we
+                                 # won't want that:
+                                 # headers={"Content-Disposition": 'attachment; filename="export.csv"'},
+                                 media_type="text/csv")
 
 @storage_manager.post("/load-types")
 async def load_types(request: Request):
@@ -196,7 +203,7 @@ async def load_types(request: Request):
 @storage_manager.get("/dump-types")
 async def dump_types():
     """Return the database types as CSV text."""
-    dump_table(types(), left_keys=['barcode', 'name'])
+    return dump_table(types(), left_keys=['name', 'parent'])
 
 @storage_manager.post("/load-inventory")
 async def load_inventory(request: Request):
@@ -206,7 +213,7 @@ async def load_inventory(request: Request):
 @storage_manager.get("/dump-inventory")
 async def dump_inventory():
     """Return the database inventory as CSV text."""
-    return dump_table(inventory(), left_keys=['barcode', 'name'])
+    return dump_table(inventory(), left_keys=['barcode', 'name', 'type', 'location', 'square'])
 
 @storage_manager.post("/load-stock")
 async def load_stock(request: Request):
@@ -216,4 +223,4 @@ async def load_stock(request: Request):
 @storage_manager.get("/dump-stock")
 async def dump_stock():
     """Return the database stock as CSV text."""
-    return dump_table(stock(), left_keys=['barcode', 'name'])
+    return dump_table(stock(), left_keys=['name', 'quantity', 'location'])

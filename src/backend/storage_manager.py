@@ -196,6 +196,30 @@ def hierarchical_type(item):
             break
     return result
 
+def add_types(item):
+    """Add the hierarchical types to a dictionary, and return the dictionary."""
+    item['types'] = hierarchical_type(item)
+    return item
+
+def subtypes(top):
+    """Return all the subtypes of a top type, hierarchically."""
+    typedefs = by_name(types())
+    result = set([top])
+    while True:
+        how_many = len(result)
+        for name, details in typedefs.items():
+            if details['parent'] in result:
+                result.add(details['name'])
+        if len(result) == how_many:
+            break
+    return result
+
+@storage_manager.get("/type/{type_name}")
+async def by_type(type_name):
+    """List everything of a given type."""
+    return [tidy_dictionary(add_types(x))
+            for x in inventory().find({'type': {'$in': list(subtypes(type_name))}})]
+
 @storage_manager.get("/details/{item}")
 def details(item):
     """Return the details of an item."""

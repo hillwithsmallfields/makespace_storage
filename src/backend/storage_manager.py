@@ -167,8 +167,19 @@ async def what(pattern):
 @storage_manager.get("/attribute/{item}/{attr}")
 def attribute(item, attr):
     """Return an attribute of an item.
-    This may be defined by the item itself, or in its type hierarchy."""
-    return {attr, value}        # TODO
+    This may be defined by the item itself, or in its type hierarchy.
+    The item may be specified by name or by barcode."""
+    typedefs = by_name(types())
+    item_dict = lookup(item)
+    if attr in item_dict and item_dict[attr]:
+        return {attr: item_dict[attr]}
+    item_type = typedefs[item_dict['type']]['name']
+    while True:
+        if (value := typedefs[item_type][attr]):
+            return {attr: value}
+        if not (item_type := typedefs[item_type]['parent']):
+            break
+    return {attr, None}
 
 @storage_manager.get("/list/{location}")
 async def list_contents(location):

@@ -95,14 +95,35 @@ def id_to_name(barcode):
 
 def lookup(name_or_barcode):
     """Find an inventory item by name or by barcode."""
-    return (inventory().find_one({'barcode': int(name_or_barcode)})
-            if isinstance(name_or_barcode, int) or re.match('^[0-9]+$', name_or_barcode)
-            else inventory().find_one({'name': name_or_barcode}))
+    return (name_or_barcode
+            if isinstance(name_or_barcode, dict)
+            else ((inventory().find_one({'barcode': int(name_or_barcode)})
+                   if isinstance(name_or_barcode, int) or re.match('^[0-9]+$', name_or_barcode)
+                   else inventory().find_one({'name': name_or_barcode}))))
 
-def contents(location):
+def direct_contents(location_barcode):
+    """Return a list of things that have the given barcode as their location."""
+    return list(tidy_dictionary(d) for d in inventory().find({'location': location_barcode}))
+
+def add_contents(entry):
+    """Add to this entry a 'contents' list of the things that list it as their location.
+    Recurse down."""
+    things = direct_contents(entry['barcode'])
+    if things:
+        for thing in things:
+            add_contents(thing)
+        entry['contents'] = things
+
+def contents(location, recursive=False):
     """Return the contents of the given location.
-    The location may be given by barcode or name."""
-    return list(inventory().find({'location': lookup(location)['barcode']}))
+    The location may be given by barcode or name.
+    With the recursive flag, add a 'contents' entry for each item."""
+    print("getting contents of", location)
+    top_level = direct_contents(lookup(location)['barcode'])
+    if recursive:
+        for entry in top_level:
+            add_contents(entry)
+    return top_level
 
 def set_location(location_id, barcode):
     """Set the location of an item."""
@@ -111,11 +132,6 @@ def set_location(location_id, barcode):
 def by_name(collection):
     """Return a dictionary of a collection's contents, with the names as the keys."""
     return {entry['name']: entry for entry in collection.find({})}
-
-def strip_mongo_id(dictionary):
-    """Return a copy of a dictionary with any _id field removed.
-    The _id values are not JSON-serialisable."""
-    return {k: v for k, v in dictionary.items() if k != '_id'}
 
 def tidy_dictionary(dictionary):
     """Return a copy of a dictionary with empty strings removed.
@@ -129,8 +145,9 @@ def full_location(item):
     result = []
     countdown = 8               # in case of looping types
     inv = inventory()
-    if isinstance(item, int):
-        item = inv.find_one({'barcode': item})
+    item = lookup(item)
+    # if isinstance(item, int):
+    #     item = inv.find_one({'barcode': item})
     while (item := inv.find_one({'barcode': item['location']})):
         result.append(tidy_dictionary(item))
         countdown -= 1
@@ -164,6 +181,29 @@ async def what(pattern):
             'matches': [tidy_dictionary(x)
                         for x in inventory().find({'name': {'$regex': pattern}})]}
 
+def hierarchical_type(item):
+    """Return hierarchical type for an item.
+    The item may be specified by name or by barcode."""
+    typedefs = by_name(types())
+    item_dict = lookup(item)
+    ty = item_dict['type']
+    result = [ty]
+    while True:
+        ty = typedefs[ty]['parent']
+        if ty:
+            result.append(ty)
+        else:
+            break
+    return result
+
+@storage_manager.get("/details/{item}")
+def details(item):
+    """Return the details of an item."""
+    data = lookup(item)
+    data['types'] = hierarchical_type(item)
+    data['location'] = location_string(full_location(item))
+    return tidy_dictionary(data)
+
 @storage_manager.get("/attribute/{item}/{attr}")
 def attribute(item, attr):
     """Return an attribute of an item.
@@ -182,10 +222,11 @@ def attribute(item, attr):
     return {attr, None}
 
 @storage_manager.get("/list/{location}")
-async def list_contents(location):
+async def list_contents(location, recursive:bool = False):
     """List everything stored in the given location."""
     return {'location': location,
-            'contents': [tidy_dictionary(x) for x in contents(location)]}
+            'contents': [tidy_dictionary(x) for x in contents(location,
+                                                              recursive)]}
 
 @storage_manager.get("/map")
 async def map_contents(location: int=0, items=None):

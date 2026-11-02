@@ -118,7 +118,6 @@ def contents(location, recursive=False):
     """Return the contents of the given location.
     The location may be given by barcode or name.
     With the recursive flag, add a 'contents' entry for each item."""
-    print("getting contents of", location)
     top_level = direct_contents(lookup(location)['barcode'])
     if recursive:
         for entry in top_level:
@@ -261,18 +260,26 @@ async def map_contents(location: int=0, items=None):
     # TODO: set the type of the resulting data
     return data         # TODO
 
-@storage_manager.put("/store")
-async def store(location: int,
-                item: str):
+@storage_manager.post("/store/{item}/{location}")
+async def store(item: str,
+                location: int):
     """Mark that the item is stored in the given location."""
-    return {"result": "not stored"} # TODO
+    barcode = lookup(item)['barcode']
+    inv = inventory()
+    if inv.find_one({'barcode': location}):
+        inv.update_one({'barcode': barcode},
+                       {'$set': {'location': location}},
+                       upsert=True)
+        return {'barcode': barcode, 'location': location}
+    else:
+        raise HTTPException(status_code=404, detail="Location not found")
 
 @storage_manager.post("/new")
 async def new_item(name: str, item_type: str, barcode: int=0):
     """Create a new item.
     An item ID may be given (for example, from a barcode label you have stuck onto something)
     but if it is not given, one will be created for it."""
-    database = ensure_database()
+    inv = inventory()
     return {'result': "not done"} # TODO
 
 def convert_string(raw):

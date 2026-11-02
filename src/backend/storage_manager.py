@@ -66,6 +66,7 @@ def inventory():
     if _inventory is None:
         _inventory = _ensure_database()['inventory']
         _inventory.create_index('name', unique=True) # ignored if it already exists
+        _inventory.create_index('barcode', unique=True) # ignored if it already exists
     return _inventory
 
 def stock():
@@ -185,6 +186,8 @@ def hierarchical_type(item):
     The item may be specified by name or by barcode."""
     typedefs = by_name(types())
     item_dict = lookup(item)
+    if item_dict is None:
+        raise HTTPException(status_code=404, detail="Item not found")
     ty = item_dict['type']
     result = [ty]
     while True:
@@ -272,15 +275,43 @@ async def store(item: str,
                        upsert=True)
         return {'barcode': barcode, 'location': location}
     else:
-        raise HTTPException(status_code=404, detail="Location not found")
+        raise HTTPException(status_code=404,
+                            detail=f"Location {location} not found when storing an item")
 
-@storage_manager.post("/new")
-async def new_item(name: str, item_type: str, barcode: int=0):
+VIRTUAL_BARCODE_ISSUE_BASE = 1000000
+
+@storage_manager.post("/new/{name}/{item_type}/{location}/{barcode}")
+async def new_item(name: str, item_type: str, location: int, barcode: int, request: Request):
     """Create a new item.
+
     An item ID may be given (for example, from a barcode label you have stuck onto something)
-    but if it is not given, one will be created for it."""
+    but if it is not given, one will be created for it.
+
+    Further fields may be given in the request body."""
     inv = inventory()
+    if barcode:
+        if inv.find_one({'barcode': barcode}):
+            raise HTTPException(status_code=500, detail=f'Barcode {barcode} already in use')
+    else:
+        barcode = 1 + max(VIRTUAL_BARCODE_ISSUE_BASE,
+                          inv.find({}).sort({'barcode': -1}).limit(1).next()['barcode'])
+    inv.insert_one({'barcode': barcode,
+                    'name': name,
+                    'type': item_type,
+                    'location': location}
+                   # further fields may be given in the request body
+                   | await request.json())
     return {'result': "not done"} # TODO
+
+@storage_manager.post("/delete/{item}")
+async def delete_item(item: str):
+    """Delete an item, specified by name or barcode."""
+    deledendum = lookup(item)
+    if deledendum is None:
+        raise HTTPException(status_code=404, detail=f"Item {item} not found for deletion")
+    barcode = deledendum['barcode']
+    inventory().delete_one({'barcode': barcode})
+    return {'deleted': barcode}
 
 def convert_string(raw):
     """Convert a string to int or float if possible."""

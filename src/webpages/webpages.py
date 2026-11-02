@@ -13,6 +13,8 @@ from expressionive.expridioms import switchable_panel
 
 app = Flask("storage")
 
+API = "http://127.0.0.1:8000"
+
 def titled_page(title, page, script="", body_params=None):
     return str(exprpages.page_text(T.body(**(body_params or {}))[page],
                                    title=title,
@@ -22,14 +24,23 @@ def get_script():
     with open("static/storage_manager.js") as instream:
         return instream.read()
 
+def finder_form():
+    return T.form()[T.input()]
+
+def details_form():
+    return T.form()[T.input()]
+
+def placer_form():
+    return T.form()[T.input(), T.input()]
+
 @app.route("/")
 def one_page_app():
     return titled_page("Storage manager",
                        T.div[T.script(src="storage_manager.js"),
                              switchable_panel("one_page_app_switcher",
-                                              panels={'Find': T.p["finder"],
-                                                      'Details': T.p["Show details"],
-                                                      'Store': T.p["Store something"]},
+                                              panels={'Find': finder_form(),
+                                                      'Details': details_form(),
+                                                      'Store': placer_form()},
                                               labels={'Find': "Find",
                                                       'Details': "Show",
                                                       'Store': "Store"},
@@ -41,7 +52,7 @@ def one_page_app():
 @app.route("/find")
 def find():
     """Find where an item is stored."""
-    res = requests.get(f"http://127.0.0.1:8000/where/{request.args.get("name")}").json()
+    res = requests.get(f"{API}/where/{request.args.get("name")}").json()
     return titled_page("Search result",
                        T.p[res['item']['name'], " is ", res['location']])
 

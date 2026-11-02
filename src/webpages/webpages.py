@@ -9,17 +9,34 @@ from flask import Flask, request
 
 from expressionive.expressionive import htmltags as T
 import expressionive.exprpages as exprpages
+from expressionive.expridioms import switchable_panel
 
 app = Flask("storage")
 
-def titled_page(title, page):
-    return str(exprpages.page_text(T.body[page],
-                                   title=title))
+def titled_page(title, page, script="", body_params=None):
+    return str(exprpages.page_text(T.body(**(body_params or {}))[page],
+                                   title=title,
+                                   script_text=script))
+
+def get_script():
+    with open("static/storage_manager.js") as instream:
+        return instream.read()
 
 @app.route("/")
-def hello_world():
-    return titled_page("Page title",
-                       T.p["Page body paragraph"])
+def one_page_app():
+    return titled_page("Storage manager",
+                       T.div[T.script(src="storage_manager.js"),
+                             switchable_panel("one_page_app_switcher",
+                                              panels={'Find': T.p["finder"],
+                                                      'Details': T.p["Show details"],
+                                                      'Store': T.p["Store something"]},
+                                              labels={'Find': "Find",
+                                                      'Details': "Show",
+                                                      'Store': "Store"},
+                                              order=['Find', 'Details', 'Store'],
+                                              initial='Find')],
+                       script=get_script(),
+                       body_params={'onload': "startup();"})
 
 @app.route("/find")
 def find():

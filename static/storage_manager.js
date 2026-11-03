@@ -19,6 +19,16 @@ function select_version(container_id, choice) {
     }
 }
 
+function find_item() {
+    item_name = document.getElementById('item').value;
+    fetch('http://127.0.0.1:8000/where/' + item_name).then((response) => {
+        return response.json();
+    }).then((json) => {
+        console.log(json.location);
+        document.getElementById('location').innerHTML = json.location;
+    }).catch((err) => console.error('Fetch problem: ${err.message}'))
+}
+
 function startup() {
     select_version('one_page_app_switcher', 'Find');
 }

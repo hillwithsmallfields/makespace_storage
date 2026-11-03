@@ -6,14 +6,16 @@ import json
 import requests
 
 from flask import Flask, request
+from flask_cors import CORS
 
 from expressionive.expressionive import htmltags as T
 import expressionive.exprpages as exprpages
 from expressionive.expridioms import switchable_panel
 
-app = Flask("storage")
-
 API = "http://127.0.0.1:8000"
+
+app = Flask("storage")
+CORS(app, origins=[API+"/*"])
 
 def titled_page(title, page, script="", body_params=None):
     return str(exprpages.page_text(T.body(**(body_params or {}))[page],
@@ -30,21 +32,40 @@ def finder_form():
             T.fieldset[
                 T.legend["Item finder"],
                 T.input(type="text", name="item", id="item"),
-                T.label(for_="item")["Find item"],
-                T.button(onclick="find_item();")["Find"]]],
+                T.label(for_="item")["Name or barcode"],
+                T.br,
+                T.button(type='button', onclick="find_item();")["Find item"]]],
         T.p["Item location: ", T.span(id="location")[""]]]
 
 def details_form():
-    return T.form()[T.input()]
+    return T.div()[
+        T.form()[
+            T.fieldset[
+                T.legend["Detail inspector"],
+                T.input(type="text", name="item", id="item"),
+                T.label(for_="item")["Name or barcode"],
+                T.br,
+                T.button(type='button', onclick="inspect_item();")["Inspect item"]]],
+        T.p["Item details: ", T.span(id="location")[""]]]
 
 def placer_form():
-    return T.form()[T.input(), T.input()]
+    return T.div()[
+        T.form()[
+            T.fieldset[
+                T.legend["Item placer"],
+                T.input(type="text", name="item", id="item"),
+                T.label(for_="item")["Name or barcode"],
+                T.br,
+                T.input(type="text", name="item", id="place"),
+                T.label(for_="item")["Name or barcode"],
+                T.br,
+                T.button(type='button', onclick="place_item();")["Place item"]]],
+        T.p["Item registered at location: ", T.span(id="location")[""]]]
 
 @app.route("/")
 def one_page_app():
     return titled_page("Storage manager",
-                       T.div[T.script(src="storage_manager.js"),
-                             switchable_panel("one_page_app_switcher",
+                       T.div[switchable_panel("one_page_app_switcher",
                                               panels={'Find': finder_form(),
                                                       'Details': details_form(),
                                                       'Store': placer_form()},
@@ -52,7 +73,8 @@ def one_page_app():
                                                       'Details': "Show",
                                                       'Store': "Store"},
                                               order=['Find', 'Details', 'Store'],
-                                              initial='Find')],
+                                              initial='Find',
+                                              buttons_side='left')],
                        script=get_script(),
                        body_params={'onload': "startup();"})
 

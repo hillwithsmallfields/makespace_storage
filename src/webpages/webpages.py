@@ -25,7 +25,14 @@ def get_script():
         return instream.read()
 
 def finder_form():
-    return T.form()[T.input()]
+    return T.div()[
+        T.form()[
+            T.fieldset[
+                T.legend["Item finder"],
+                T.input(type="text", name="item", id="item"),
+                T.label(for_="item")["Find item"],
+                T.button(onclick="find_item();")["Find"]]],
+        T.p["Item location: ", T.span(id="location")[""]]]
 
 def details_form():
     return T.form()[T.input()]

@@ -1,2 +1,2 @@
 [tool.fastapi]
-entrypoint = "backend.storage_manager:storage_manager"
+entrypoint = "src.backend.storage_manager:storage_manager"

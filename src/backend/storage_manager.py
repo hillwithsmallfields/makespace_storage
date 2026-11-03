@@ -263,20 +263,28 @@ async def map_contents(location: int=0, items=None):
     # TODO: set the type of the resulting data
     return data         # TODO
 
+def is_stock(barcode):
+    # TODO: work out whether it is stock or inventory
+    return False
+
 @storage_manager.post("/store/{item}/{location}")
 async def store(item: str,
-                location: int):
+                location: int,
+                quantity: int):
     """Mark that the item is stored in the given location."""
     barcode = lookup(item)['barcode']
-    inv = inventory()
-    if inv.find_one({'barcode': location}):
-        inv.update_one({'barcode': barcode},
-                       {'$set': {'location': location}},
-                       upsert=True)
-        return {'barcode': barcode, 'location': location}
-    else:
-        raise HTTPException(status_code=404,
-                            detail=f"Location {location} not found when storing an item")
+    if is_stock(barcode):
+        pass                    # TODO store stock separately, using quantity
+    else
+        inv = inventory()
+        if inv.find_one({'barcode': location}):
+            inv.update_one({'barcode': barcode},
+                           {'$set': {'location': location}},
+                           upsert=True)
+            return {'barcode': barcode, 'location': location}
+        else:
+            raise HTTPException(status_code=404,
+                                detail=f"Location {location} not found when storing an item")
 
 VIRTUAL_BARCODE_ISSUE_BASE = 1000000
 

@@ -18,15 +18,16 @@ receiver.
 
 Design with touch screen (no keypad needed!)
 
- |----------------------------------------------------------+-----------------------------------------------------------------------------------------+-------|
- | Part                                                     | Example URL                                                                             | Price |
- |----------------------------------------------------------+-----------------------------------------------------------------------------------------+-------|
- | ESP32-S3 Development Board with Capacitive Touch Display | https://thepihut.com/products/esp32-s2-2-8-capacitive-touch-development-board           | 25.00 |
- | Battery cable                                            | https://thepihut.com/products/adafruit-1-25mm-pitch-2-pin-cable-matching-pair-40cm-long |  0.90 |
- | 3.3V Barcode scan engine                                 | https://thepihut.com/products/useful-sensors-tiny-code-reader                           |  7.00 |
- | Wireless Charging Module 5V/300mA                        | https://thepihut.com/products/wireless-charging-module-5v-300ma                         |  6.30 |
- | Total                                                    |                                                                                         | 39.20 |
- |----------------------------------------------------------+-----------------------------------------------------------------------------------------+-------|
+ |----------------------------------------------------------+------------------------------------------------------------------------------------+-------|
+ | Part                                                     | Example URL                                                                        | Price |
+ |----------------------------------------------------------+------------------------------------------------------------------------------------+-------|
+ | ESP32-S3 Development Board with Capacitive Touch Display | https://thepihut.com/products/esp32-s2-2-8-capacitive-touch-development-board      | 25.00 |
+ | Battery                                                  | https://thepihut.com/products/1200mah-3-7v-lipo-battery-1-25mm-picoblade-connector |  8.00 |
+ | 3.3V Barcode scan engine                                 | https://thepihut.com/products/useful-sensors-tiny-code-reader                      |  7.00 |
+ | Wireless Charging Module 5V/300mA                        | https://thepihut.com/products/wireless-charging-module-5v-300ma                    |  6.30 |
+ | MicroSD card                                             |                                                                                    |       |
+ | Total                                                    |                                                                                    |       |
+ |----------------------------------------------------------+------------------------------------------------------------------------------------+-------|
 
 The development board is described at [[https://docs.waveshare.com/ESP32-S3-Touch-LCD-2.8][ESP32-S3-Touch-LCD-2.8]]; it has
 UART and I2C interfaces available.  There's also a [[https://files.waveshare.com/wiki/ESP32-S3-Touch-LCD-2.8/ESP32-S3-Touch-LCD-4.3B-Sch.pdf][diagram]].

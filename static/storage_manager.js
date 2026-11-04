@@ -1,4 +1,6 @@
 <script>
+const api = 'http://127.0.0.1:8000';
+
 function select_version(container_id, choice) {
     var container = document.getElementById(container_id);
     var choices = container.getElementsByClassName('choice');
@@ -20,34 +22,35 @@ function select_version(container_id, choice) {
 }
 
 function find_item() {
-    item_name = document.getElementById('item').value;
-    fetch(`http://127.0.0.1:8000/where/${item_name}`).then((response) => {
+    item_name = document.getElementById('item_to_find').value;
+    fetch(`${api}/where/${item_name}`).then((response) => {
         return response.json();
     }).then((json) => {
         console.log(json.location);
-        document.getElementById('location').innerHTML = json.location;
+        document.getElementById('location').innerText = json.location;
     }).catch((err) => console.error('Fetch problem: ${err.message}'))
 }
 
 function inspect_item() {
-    item_name = document.getElementById('item').value;
-    fetch(`http://127.0.0.1:8000/details/${item_name}`).then((response) => {
+    item_name = document.getElementById('item_to_inspect').value;
+    fetch(`${api}/details/${item_name}`).then((response) => {
         return response.json();
     }).then((json) => {
-        // this will be more subtle, as there will be assorted keys
         console.log(json.location);
-        document.getElementById('location').innerHTML = json.location;
+        document.getElementById('location').innerText = json.location;
+        console.log(json.types);
+        document.getElementById('types').innerText = json.types;
     }).catch((err) => console.error('Fetch problem: ${err.message}'))
 }
 
 function place_item() {
-    item_name = document.getElementById('item').value;
+    item_name = document.getElementById('item_to_store').value;
     place_name = document.getElementById('place').value;
-    fetch(`http://127.0.0.1:8000/store/${item_name}/${place_name}`).then((response) => {
+    fetch(`${api}/store/${item_name}/${place_name}`).then((response) => {
         return response.json();
     }).then((json) => {
         console.log(json.location);
-        document.getElementById('location').innerHTML = json.location;
+        document.getElementById('location').innerText = json.location;
     }).catch((err) => console.error('Fetch problem: ${err.message}'))
 }
 

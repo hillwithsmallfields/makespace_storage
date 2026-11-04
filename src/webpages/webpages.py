@@ -6,16 +6,20 @@ import json
 import requests
 
 from flask import Flask, request
-from flask_cors import CORS
+# from flask_cors import CORS
 
 from expressionive.expressionive import htmltags as T
 import expressionive.exprpages as exprpages
 from expressionive.expridioms import switchable_panel
 
 API = "http://127.0.0.1:8000"
+WEB = "http://127.0.0.1:5000"
 
 app = Flask("storage")
-CORS(app, origins=[API+"/*"])
+
+# CORS(app, origins=[WEB+"/*", API+"/*"])
+
+# CORS(app, origins=["*"])
 
 def titled_page(title, page, script="", body_params=None):
     return str(exprpages.page_text(T.body(**(body_params or {}))[page],
@@ -31,7 +35,7 @@ def finder_form():
         T.form()[
             T.fieldset[
                 T.legend["Item finder"],
-                T.input(type="text", name="item", id="item"),
+                T.input(type="text", name="item_to_find", id="item_to_find"),
                 T.label(for_="item")["Name or barcode"],
                 T.br,
                 T.button(type='button', onclick="find_item();")["Find item"]]],
@@ -41,22 +45,25 @@ def details_form():
     return T.div()[
         T.form()[
             T.fieldset[
-                T.legend["Detail inspector"],
-                T.input(type="text", name="item", id="item"),
+                T.legend["Item inspector"],
+                T.input(type="text", name="item_to_inspect", id="item_to_inspect"),
                 T.label(for_="item")["Name or barcode"],
                 T.br,
                 T.button(type='button', onclick="inspect_item();")["Inspect item"]]],
-        T.p["Item details: ", T.span(id="location")[""]]]
+        T.div(class_='inspection_details')[
+            T.p["Item location: ", T.span(id="location")[""]],
+            T.p["Item types: ", T.span(id="types")[""]],
+        ]]
 
 def placer_form():
     return T.div()[
         T.form()[
             T.fieldset[
                 T.legend["Item placer"],
-                T.input(type="text", name="item", id="item"),
+                T.input(type="text", name="item_to_store", id="item_to_store"),
                 T.label(for_="item")["Name or barcode"],
                 T.br,
-                T.input(type="text", name="item", id="place"),
+                T.input(type="text", name="place", id="place"),
                 T.label(for_="item")["Name or barcode"],
                 T.br,
                 T.button(type='button', onclick="place_item();")["Place item"]]],
@@ -67,12 +74,12 @@ def one_page_app():
     return titled_page("Storage manager",
                        T.div[switchable_panel("one_page_app_switcher",
                                               panels={'Find': finder_form(),
-                                                      'Details': details_form(),
+                                                      'Inspect': details_form(),
                                                       'Store': placer_form()},
                                               labels={'Find': "Find",
-                                                      'Details': "Show",
+                                                      'Inspect': "Inspect",
                                                       'Store': "Store"},
-                                              order=['Find', 'Details', 'Store'],
+                                              order=['Find', 'Inspect', 'Store'],
                                               initial='Find',
                                               buttons_side='left')],
                        script=get_script(),

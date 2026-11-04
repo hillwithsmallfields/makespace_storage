@@ -11,8 +11,19 @@ import urllib
 from bson.objectid import ObjectId
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 storage_manager = FastAPI()
+
+WEB = "http://127.0.0.1:5000"
+
+storage_manager.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 _database_client = None
 _inventory = None
@@ -225,10 +236,11 @@ async def by_type(type_name):
 @storage_manager.get("/details/{item}")
 def details(item):
     """Return the details of an item."""
-    data = lookup(item)
-    data['types'] = hierarchical_type(item)
-    data['location'] = location_string(full_location(item))
-    return tidy_dictionary(data)
+    return {
+        'types': hierarchical_type(item),
+        'location': location_string(full_location(item)),
+        'details': tidy_dictionary(lookup(item)),
+    }
 
 @storage_manager.get("/attribute/{item}/{attr}")
 def attribute(item, attr):
@@ -275,7 +287,7 @@ async def store(item: str,
     barcode = lookup(item)['barcode']
     if is_stock(barcode):
         pass                    # TODO store stock separately, using quantity
-    else
+    else:
         inv = inventory()
         if inv.find_one({'barcode': location}):
             inv.update_one({'barcode': barcode},

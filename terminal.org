@@ -13,22 +13,42 @@ performing some operations based on them.
 ## Design
 
 A handheld computer with wifi, with a barcode scanner, display, and
-keypad, and a battery and wireless charging receiver.
+keypad (or touch screen), and a battery and wireless charging
+receiver.
 
- |----------------------------+-----------------------------------------------------------------+-------|
- | Part                       | Example URL                                                     | Price |
- |----------------------------+-----------------------------------------------------------------+-------|
- | Raspberry Pi Zero 2W       | https://thepihut.com/products/raspberry-pi-zero-2               | 17.30 |
- | Barcode scan engine        | https://www.aliexpress.com/item/32865222900.html                |  7.36 |
- | Display                    | https://www.amazon.co.uk/dp/B0FCRWPFSB                          |  7.50 |
- | Keypad                     | https://www.amazon.co.uk/dp/B0CN6FDW7F                          |  4.50 |
- | Battery system             | https://thepihut.com/products/lipo-battery-hat-for-raspberry-pi | 18.30 |
- | Wireless charging receiver | https://www.amazon.co.uk/dp/B0897KLDB3                          |  6.25 |
- | Case                       | Probably 3D-printed inhouse                                     |       |
- |----------------------------+-----------------------------------------------------------------+-------|
+Design with touch screen (no keypad needed!)
 
-Current total £61.21 pluse case.
- 
+ |----------------------------------------------------------+-----------------------------------------------------------------------------------------+-------|
+ | Part                                                     | Example URL                                                                             | Price |
+ |----------------------------------------------------------+-----------------------------------------------------------------------------------------+-------|
+ | ESP32-S3 Development Board with Capacitive Touch Display | https://thepihut.com/products/esp32-s2-2-8-capacitive-touch-development-board           | 25.00 |
+ | Battery cable                                            | https://thepihut.com/products/adafruit-1-25mm-pitch-2-pin-cable-matching-pair-40cm-long |  0.90 |
+ | 3.3V Barcode scan engine                                 | https://thepihut.com/products/useful-sensors-tiny-code-reader                           |  7.00 |
+ | Wireless Charging Module 5V/300mA                        | https://thepihut.com/products/wireless-charging-module-5v-300ma                         |  6.30 |
+ | Total                                                    |                                                                                         | 39.20 |
+ |----------------------------------------------------------+-----------------------------------------------------------------------------------------+-------|
+
+The development board is described at [[https://docs.waveshare.com/ESP32-S3-Touch-LCD-2.8][ESP32-S3-Touch-LCD-2.8]]; it has
+UART and I2C interfaces available.  There's also a [[https://files.waveshare.com/wiki/ESP32-S3-Touch-LCD-2.8/ESP32-S3-Touch-LCD-4.3B-Sch.pdf][diagram]].
+
+That supports the [[https://lvgl.io/][LVGL]] embedded UI system.
+
+Google says:
+
+Many developers avoid native I2C for barcode scanners because
+full-length barcode strings (like Code 128 or QR codes with dozens of
+characters) require larger packet transfers than typical I2C register
+reads. Using a hardware UART port on your MCU is usually much simpler
+and less prone to buffer truncation than trying to shuttle long ASCII
+strings over I2C.
+
+Integrating a standard TTL/UART barcode scan engine with an ESP32
+offers a major advantage: the ESP32 features three hardware UARTs
+(serial ports), allowing you to bypass I2C entirely. You can connect
+the scanner directly to one of the ESP32's free hardware serial ports,
+leaving your primary hardware I2C pins entirely free for other sensors
+or displays.
+
 See also https://www.youtube.com/watch?v=opYVS0EXZIg for battery stuff
 and https://thepihut.com/products/li-ion-battery-hat-for-raspberry-pi
 and https://thepihut.com/products/lipo-battery-hat-for-raspberry-pi

@@ -1,0 +1,98 @@
+#!/bin/bash
+
+echo Test addressing something by name:
+echo Where is the first aid box?
+curl http://127.0.0.1:8000/where/First%20aid%20box
+echo
+
+echo Test addressing something by barcode:
+echo Where is item 1000?
+curl http://127.0.0.1:8000/where/1000
+echo
+
+# Test getting details, which includes computing the hierarchical location and hierarchical type:
+echo What are the details of Betsy?
+curl http://127.0.0.1:8000/details/Betsy
+echo
+
+# Tests of non-recursive listing:
+echo What is in the old main space?
+curl http://127.0.0.1:8000/list/Old%20main%20space
+echo
+
+echo What is in Clifton Road?
+curl http://127.0.0.1:8000/list/Clifton%20Road
+echo
+
+# Tests of recursive listing:
+echo What is in Clifton Road, recursively?
+curl http://127.0.0.1:8000/list/Clifton%20Road?recursive=true
+echo
+
+echo What is in Mill Lane, recursively?
+curl http://127.0.0.1:8000/list/Mill%20Lane?recursive=true
+echo
+
+# Test listing things by regexp
+echo List all the shelves
+curl http://127.0.0.1:8000/what/shelf
+echo
+
+# Test that we can get an attribute directly
+echo What adjective describes the first aid box?
+curl http://127.0.0.1:8000/attribute/First%20aid%20box/adjective
+echo
+
+# Test that we can get an attribute from the type hierarchy:
+echo What adjective describes the laser tools box?
+curl http://127.0.0.1:8000/attribute/Laser%20tools%20box/adjective
+echo
+
+# Test listing everything of a given type and its subtypes:
+echo What red equipment do we have?
+curl http://127.0.0.1:8000/type/red%20equipment
+echo
+
+# Test moving something to a location and back
+echo Move Betsy to the secure workshop
+curl -X POST http://127.0.0.1:8000/store/Betsy/5
+echo
+curl http://127.0.0.1:8000/where/Betsy
+echo
+curl -X POST http://127.0.0.1:8000/store/Betsy/3
+echo
+curl http://127.0.0.1:8000/where/Betsy
+echo
+
+# Delete the things we are about to add, in case there are old ones already there
+curl -X POST http://127.0.0.1:8000/delete/Toaster
+echo
+curl -X POST http://127.0.0.1:8000/delete/Kettle
+echo
+
+# Test making a new item, allocating the barcode automatically
+echo Making a new item without giving a barcode
+curl -X POST http://127.0.0.1:8000/new/Toaster/kitchen%20equipment/8/0 --data-binary '{"slots": 4}'
+echo
+echo What are the details of the toaster we just added?
+curl http://127.0.0.1:8000/details/Toaster
+echo
+
+# Test deleting an item
+echo Deleting an item
+curl -X POST http://127.0.0.1:8000/delete/Toaster
+echo
+
+# Test making a new item with a given barcode
+echo Making a new item without giving a barcode
+curl -X POST http://127.0.0.1:8000/new/Kettle/kitchen%20equipment/8/1509 --data-binary '{"capacity": 1.5}'
+echo
+
+echo What are the details of the kettle we just added?
+curl http://127.0.0.1:8000/details/Kettle
+echo
+
+# Test deleting an item
+echo Deleting an item
+curl -X POST http://127.0.0.1:8000/delete/Kettle
+echo

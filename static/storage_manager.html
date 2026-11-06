@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8"><meta charset="utf-8">
+<title>Storage manager</title>
+<script>
+const api = 'http://127.0.0.1:8000';
+
+function select_version(container_id, choice) {
+    var container = document.getElementById(container_id);
+    var choices = container.getElementsByClassName('choice');
+    for (let i=0; i<choices.length; i++) {
+        if (choices[i].getAttribute('name') === choice) {
+            choices[i].style.display = 'block';
+        } else {
+            choices[i].style.display = 'none';
+        }
+    }
+    buttons = container.getElementsByTagName('button');
+    for (let i=0; i<buttons.length; i++) {
+        if (buttons[i].getAttribute('name') === choice) {
+            buttons[i].className = 'active';
+        } else {
+            buttons[i].className = 'inactive';
+        }
+    }
+}
+
+function find_item() {
+    item_name = document.getElementById('item_to_find').value;
+    fetch(`${api}/where/${item_name}`).then((response) => {
+        return response.json();
+    }).then((json) => {
+        console.log(json.location);
+        document.getElementById('location').innerText = json.location;
+    }).catch((err) => console.error('Fetch problem: ${err.message}'))
+}
+
+function inspect_item() {
+    item_name = document.getElementById('item_to_inspect').value;
+    fetch(`${api}/details/${item_name}`).then((response) => {
+        return response.json();
+    }).then((json) => {
+        console.log(json.location);
+        document.getElementById('location').innerText = json.location;
+        console.log(json.types);
+        document.getElementById('types').innerText = json.types;
+    }).catch((err) => console.error('Fetch problem: ${err.message}'))
+}
+
+function place_item() {
+    item_name = document.getElementById('item_to_store').value;
+    place_name = document.getElementById('place').value;
+    fetch(`${api}/store/${item_name}/${place_name}`).then((response) => {
+        return response.json();
+    }).then((json) => {
+        console.log(json.location);
+        document.getElementById('location').innerText = json.location;
+    }).catch((err) => console.error('Fetch problem: ${err.message}'))
+}
+
+function startup() {
+    select_version('one_page_app_switcher', 'Find');
+}
+</script></head>
+
+  <body onload="startup();">
+    <div>
+      <table id="one_page_app_switcher" class="switcher">
+        <tbody>
+          <tr align="center">
+            <td rowspan="4" class="left-button-bar">
+              <button name="Find" onclick="select_version('one_page_app_switcher', 'Find')" class="active">Find</button>
+              <br><button name="Inspect" onclick="select_version('one_page_app_switcher', 'Inspect')" class="inactive">Inspect</button>
+              <br><button name="Store" onclick="select_version('one_page_app_switcher', 'Store')" class="inactive">Store</button>
+              <br>
+            </td>
+            <td class="top-button-bar"></td>
+            <td rowspan="4" class="right-button-bar"></td>
+          </tr>
+          <tr align="center">
+            <td>
+              <div name="Find" class="choice" style="display: block;"><div>
+                  <form>
+                    <fieldset>
+                      <legend>Item finder</legend>
+                      <input type="text" name="item_to_find" id="item_to_find"/>
+                      <label for="item">Name or barcode</label>
+                      <br>
+                      <button type="button" onclick="find_item();" class="inactive">Find item</button>
+                    </fieldset>
+                  </form>
+                  <p>Item location: <span id="location"></span>
+                  </p>
+                </div>
+              </div>
+              <div name="Inspect" class="choice" style="display: none;">
+                <div>
+                  <form>
+                    <fieldset>
+                      <legend>Item inspector</legend>
+                      <input type="text" name="item_to_inspect" id="item_to_inspect">
+                      <label for="item">Name or barcode</label>
+                      <br>
+                      <button type="button" onclick="inspect_item();" class="inactive">Inspect item</button>
+                    </fieldset>
+                  </form>
+                  <div class="inspection_details">
+                    <p>Item location: <span id="location"></span></p>
+                    <p>Item types: <span id="types"></span></p>
+                  </div>
+                </div>
+              </div>
+              <div name="Store" class="choice" style="display: none;">
+                <div>
+                  <form>
+                    <fieldset>
+                      <legend>Item placer</legend>
+                      <input type="text" name="item_to_store" id="item_to_store">
+                      <label for="item">Name or barcode</label>
+                      <br>
+                      <input type="text" name="place" id="place">
+                      <label for="item">Name or barcode</label>
+                      <br>
+                      <button type="button" onclick="place_item();" class="inactive">Place item</button>
+                    </fieldset>
+                  </form>
+                  <p>Item registered at location: <span id="location"></span>
+                  </p>
+                </div>
+              </div>
+            </td>
+          </tr>
+          <tr align="center">
+            <td class="bottom-button-bar"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+
+<span style="visibility: hidden;" id="__TIMER_INJECTION_FLAG__{a8cf72f7-09b7-4cd4-9aaa-7a023bf09916}"></span></body></html>

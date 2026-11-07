@@ -7,30 +7,30 @@ echo
 
 echo Test addressing something by barcode:
 echo Where is item 1000?
-curl http://127.0.0.1:8000/where/1000
+curl http://127.0.0.1:8000/1000/where
 echo
 
 # Test getting details, which includes computing the hierarchical location and hierarchical type:
 echo What are the details of Betsy?
-curl http://127.0.0.1:8000/details/Betsy
+curl http://127.0.0.1:8000/Betsy/details
 echo
 
 # Tests of non-recursive listing:
 echo What is in the old main space?
-curl http://127.0.0.1:8000/list/Old%20main%20space
+curl http://127.0.0.1:8000/Old%20main%20space/contents
 echo
 
 echo What is in Clifton Road?
-curl http://127.0.0.1:8000/list/Clifton%20Road
+curl http://127.0.0.1:8000/Clifton%20Road/list
 echo
 
 # Tests of recursive listing:
 echo What is in Clifton Road, recursively?
-curl http://127.0.0.1:8000/list/Clifton%20Road?recursive=true
+curl http://127.0.0.1:8000/Clifton%20Road/list?recursive=true
 echo
 
 echo What is in Mill Lane, recursively?
-curl http://127.0.0.1:8000/list/Mill%20Lane?recursive=true
+curl http://127.0.0.1:8000/Mill%20Lane/list?recursive=true
 echo
 
 # Test listing things by regexp
@@ -40,12 +40,12 @@ echo
 
 # Test that we can get an attribute directly
 echo What adjective describes the first aid box?
-curl http://127.0.0.1:8000/attribute/First%20aid%20box/adjective
+curl http://127.0.0.1:8000/First%20aid%20box/attribute/adjective
 echo
 
 # Test that we can get an attribute from the type hierarchy:
 echo What adjective describes the laser tools box?
-curl http://127.0.0.1:8000/attribute/Laser%20tools%20box/adjective
+curl http://127.0.0.1:8000/Laser%20tools%20box/attribute/adjective
 echo
 
 # Test listing everything of a given type and its subtypes:
@@ -55,44 +55,44 @@ echo
 
 # Test moving something to a location and back
 echo Move Betsy to the secure workshop
-curl -X POST http://127.0.0.1:8000/store/Betsy/5
+curl -X POST http://127.0.0.1:8000/Betsy/move/5
 echo
-curl http://127.0.0.1:8000/where/Betsy
+curl http://127.0.0.1:8000/Betsy/where
 echo
-curl -X POST http://127.0.0.1:8000/store/Betsy/3
+curl -X POST http://127.0.0.1:8000/Betsy/store/3
 echo
-curl http://127.0.0.1:8000/where/Betsy
+curl http://127.0.0.1:8000/Betsy/where
 echo
 
 # Delete the things we are about to add, in case there are old ones already there
-curl -X POST http://127.0.0.1:8000/delete/Toaster
+curl -X POST http://127.0.0.1:8000/Toaster/delete
 echo
-curl -X POST http://127.0.0.1:8000/delete/Kettle
-echo
-
-# Test making a new item, allocating the barcode automatically
-echo Making a new item without giving a barcode
-curl -X POST http://127.0.0.1:8000/new/Toaster/kitchen%20equipment/8/0 --data-binary '{"slots": 4}'
-echo
-echo What are the details of the toaster we just added?
-curl http://127.0.0.1:8000/details/Toaster
+curl -X POST http://127.0.0.1:8000/Kettle/delete
 echo
 
-# Test deleting an item
-echo Deleting an item
-curl -X POST http://127.0.0.1:8000/delete/Toaster
-echo
+# # Test making a new item, allocating the barcode automatically
+# echo Making a new item without giving a barcode
+# curl -X POST http://127.0.0.1:8000/new/Toaster/kitchen%20equipment/8/0 --data-binary '{"slots": 4}'
+# echo
+# echo What are the details of the toaster we just added?
+# curl http://127.0.0.1:8000/details/Toaster
+# echo
 
-# Test making a new item with a given barcode
-echo Making a new item without giving a barcode
-curl -X POST http://127.0.0.1:8000/new/Kettle/kitchen%20equipment/8/1509 --data-binary '{"capacity": 1.5}'
-echo
+# # Test deleting an item
+# echo Deleting an item
+# curl -X POST http://127.0.0.1:8000/Toaster/delete
+# echo
 
-echo What are the details of the kettle we just added?
-curl http://127.0.0.1:8000/details/Kettle
-echo
+# # Test making a new item with a given barcode
+# echo Making a new item without giving a barcode
+# curl -X POST http://127.0.0.1:8000/new/Kettle/kitchen%20equipment/8/1509 --data-binary '{"capacity": 1.5}'
+# echo
 
-# Test deleting an item
-echo Deleting an item
-curl -X POST http://127.0.0.1:8000/delete/Kettle
-echo
+# echo What are the details of the kettle we just added?
+# curl http://127.0.0.1:8000/Kettle/details
+# echo
+
+# # Test deleting an item
+# echo Deleting an item
+# curl -X POST http://127.0.0.1:8000/Kettle/delete
+# echo

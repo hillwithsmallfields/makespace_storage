@@ -176,7 +176,28 @@ def location_string(full_loc, sep=", "):
 async def root():
     return {"message": "This is the makespace.org storage manager."}
 
-@storage_manager.get("/where/{item}")
+def links_for_item(base_url: str, item: dict):
+    links = {
+        label: f"{base_url}/{label}" for label in ["details", "where", "type"]
+    }
+    if not item.get('fixed', False):
+        links['move'] = f"{base_url}/move/" + "{location}"
+    if False:
+        links['delete'] = f"{base_url}/delete"
+    if direct_contents(item['barcode']):
+        links['contains'] = f"{base_url}/contains"
+    return links
+
+@storage_manager.get("/{item}")
+async def item_home(item, request: Request):
+    details = lookup(item)
+    return ({'name': details['name'],
+             'type': details['type'],
+             'links': links_for_item(request.url, details)}
+            if details
+            else {'links': {'new': f"request.url{item}/new"}})
+
+@storage_manager.get("/{item}/where")
 async def where(item, full=False):
     """Return where an item is located.
     The item may be specified by name or by id (barcode)."""
@@ -185,7 +206,7 @@ async def where(item, full=False):
     return {'item': tidy_dictionary(item),
             'location': location if full else location_string(location)}
 
-@storage_manager.get("/what/{pattern}")
+@storage_manager.get("/{pattern}/what")
 async def what(pattern):
     """List everything with a name matching the given pattern."""
     return {'matching': pattern,
@@ -233,7 +254,7 @@ async def by_type(type_name):
     return [tidy_dictionary(add_types(x))
             for x in inventory().find({'type': {'$in': list(subtypes(type_name))}})]
 
-@storage_manager.get("/details/{item}")
+@storage_manager.get("/{item}/details")
 def details(item):
     """Return the details of an item."""
     return {
@@ -242,7 +263,7 @@ def details(item):
         'details': tidy_dictionary(lookup(item)),
     }
 
-@storage_manager.get("/attribute/{item}/{attr}")
+@storage_manager.get("/{item}/attribute/{attr}")
 def attribute(item, attr):
     """Return an attribute of an item.
     This may be defined by the item itself, or in its type hierarchy.
@@ -259,7 +280,7 @@ def attribute(item, attr):
             break
     return {attr, None}
 
-@storage_manager.get("/list/{location}")
+@storage_manager.get("/{location}/contents")
 async def list_contents(location, recursive:bool = False):
     """List everything stored in the given location."""
     return {'location': location,
@@ -279,7 +300,7 @@ def is_stock(barcode):
     # TODO: work out whether it is stock or inventory
     return False
 
-@storage_manager.post("/store/{item}/{location}")
+@storage_manager.post("/{item}/move/{location}")
 async def store(item: str,
                 location: int,
                 quantity: int):
@@ -300,7 +321,7 @@ async def store(item: str,
 
 VIRTUAL_BARCODE_ISSUE_BASE = 1000000
 
-@storage_manager.post("/new/{name}/{item_type}/{location}/{barcode}")
+@storage_manager.post("/{name}/new/{item_type}/{location}/{barcode}")
 async def new_item(name: str, item_type: str, location: int, barcode: int, request: Request):
     """Create a new item.
 
@@ -323,7 +344,7 @@ async def new_item(name: str, item_type: str, location: int, barcode: int, reque
                    | await request.json())
     return {'result': "not done"} # TODO
 
-@storage_manager.post("/delete/{item}")
+@storage_manager.post("/{item}/delete")
 async def delete_item(item: str):
     """Delete an item, specified by name or barcode."""
     deledendum = lookup(item)

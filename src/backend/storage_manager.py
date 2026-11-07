@@ -253,7 +253,7 @@ def subtypes(top):
             break
     return result
 
-@storage_manager.get("/type/{type_name}")
+@storage_manager.get("/{type_name}/list_type")
 async def by_type(type_name):
     """List everything of a given type."""
     return [tidy_dictionary(add_types(x))
@@ -262,9 +262,11 @@ async def by_type(type_name):
 @storage_manager.get("/{item}/details")
 def details(item):
     """Return the details of an item."""
+    loc = full_location(item)
     return {
         'types': hierarchical_type(item),
-        'location': location_string(full_location(item)),
+        'nest': loc,
+        'location': location_string(loc),
         'details': tidy_dictionary(lookup(item)),
     }
 

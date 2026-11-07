@@ -90,11 +90,12 @@ def item_home(item):
     res = requests.get(f"{API}/{item}").json()
     details = requests.get(f"{API}/{item}/details").json()
     equipment_class = requests.get(f"{API}/{item}/attribute/equipment class").json()['equipment class']
+    types = details['types']
     item_name = res['name']
     item_type = res['type']
     links = res['links']
     contents = requests.get(f"{API}/{item}/contents").json()['contents']
-    location = requests.get(links['where']).json()['nest']
+    location = details['nest']
     title = f"{item_name} ({item_type})"
     page = [T.div[T.h1[title],
                   T.p[item_name, " is ",
@@ -102,16 +103,38 @@ def item_home(item):
                           f"{layer['preposition']} ",
                           T.a(href=f"{WEB}/{layer['name']}")[layer['name']]] for layer in location]],
                       " and is ", equipment_class, " equipment."]]]
+    page.append(T.div[T.h2["Types"],
+                      T.ul[[T.li[T.a(href=f"{WEB}/{t}/type")[t]] for t in types]]])
     if contents:
         page.append(T.div[T.h2["Contents"],
                           T.ul[[
                               T.li[T.a(href=f"{WEB}/{dweller['name']}")[dweller['name']]]
                               for dweller in contents
                           ]]])
+    # TODO: show the types, with a link on each to get the details of the type, which will also have a link to list everything of that type
+    # TODO: use the 'fits' attribute to construct where something can be moved to
     page.append(T.div[T.h2["API links"],
                       T.ul[[T.li[T.a(href=value)[key]]
                              for key, value in links.items()]]])
     return titled_page(title, page)
+
+@app.route("/<typename>/type")
+def type_details(typename):
+    return titled_page("Type details",
+                       T.div[T.p["Details of " + typename],
+                             T.a(href=f"{WEB}/{typename}/list")["List all things of type ", typename]
+                             ])
+
+@app.route("/<typename>/list")
+def type_list(typename):
+    things = requests.get(f"{API}/{typename}/list_type").json()#['types']
+    return titled_page("Type list",
+                       T.div[T.p["List of " + typename],
+                             T.ul[[
+                                 T.li[T.a(href=f"{WEB}/{thing['name']}")[thing['name']]]
+                                 for thing in things
+                                 ]]
+                             ])
 
 @app.route("/<item>/details")
 def details(item):

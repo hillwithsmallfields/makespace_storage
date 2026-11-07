@@ -25,3 +25,15 @@ fridge,kitchen equipment,,,,,,,
 microwave,kitchen equipment,,,,,,,
 kitchen equipment,equipment,,,,,,,
 safe cupboard,cupboard,,,,,,,
+metal mill,electrical metalwork equipment
+metal lathe,electrical metalwork equipment
+metal cnc,electrical metalwork equipment
+disc sander,electrical equipment
+glasskiln,electrical equipment
+vacuum former,electrical equipment
+vacuum cleaner,electrical equipment
+laser printer,electrical equipment
+pillar drill,electrical equipment
+kettle,kitchen equipment
+electrical metalwork equipment,red equipment
+electrical equipment,equipment

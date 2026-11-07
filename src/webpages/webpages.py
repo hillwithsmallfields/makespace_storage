@@ -85,6 +85,39 @@ def one_page_app():
                        script=get_script(),
                        body_params={'onload': "startup();"})
 
+@app.route("/<item>")
+def item_home(item):
+    res = requests.get(f"{API}/{item}").json()
+    details = requests.get(f"{API}/{item}/details").json()
+    equipment_class = requests.get(f"{API}/{item}/attribute/equipment class").json()['equipment class']
+    item_name = res['name']
+    item_type = res['type']
+    links = res['links']
+    contents = requests.get(f"{API}/{item}/contents").json()['contents']
+    location = requests.get(links['where']).json()['nest']
+    title = f"{item_name} ({item_type})"
+    page = [T.div[T.h1[title],
+                  T.p[item_name, " is ",
+                      [[T.span[
+                          f"{layer['preposition']} ",
+                          T.a(href=f"{WEB}/{layer['name']}")[layer['name']]] for layer in location]],
+                      " and is ", equipment_class, " equipment."]]]
+    if contents:
+        page.append(T.div[T.h2["Contents"],
+                          T.ul[[
+                              T.li[T.a(href=f"{WEB}/{dweller['name']}")[dweller['name']]]
+                              for dweller in contents
+                          ]]])
+    page.append(T.div[T.h2["API links"],
+                      T.ul[[T.li[T.a(href=value)[key]]
+                             for key, value in links.items()]]])
+    return titled_page(title, page)
+
+@app.route("/<item>/details")
+def details(item):
+    return titled_page("Details",
+                       T.div["details of ", item, " will go here."])
+
 @app.route("/find")
 def find():
     """Find where an item is stored."""

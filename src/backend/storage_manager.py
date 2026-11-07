@@ -153,13 +153,13 @@ def tidy_dictionary(dictionary):
 def full_location(item):
     """Return the full hierarchical location data for an item.
     The item may be given as a barcode or a dictionary."""
+    typedefs = by_name(types())
     result = []
     countdown = 8               # in case of looping types
     inv = inventory()
     item = lookup(item)
-    # if isinstance(item, int):
-    #     item = inv.find_one({'barcode': item})
     while (item := inv.find_one({'barcode': item['location']})):
+        item['preposition'] = typedefs[item['type']]['preposition']
         result.append(tidy_dictionary(item))
         countdown -= 1
         if countdown == 0:
@@ -168,9 +168,9 @@ def full_location(item):
 
 def location_string(full_loc, sep=", "):
     """Return a string summarising the given hierarchical location data."""
-    typedefs = by_name(types())
-    return sep.join(f"{typedefs[surrounder['type']]['preposition']} {surrounder['name']}"
-                    for surrounder in full_loc)
+    return sep.join(
+        f"{surrounder['preposition']} {surrounder['name']}"
+        for surrounder in full_loc)
 
 @storage_manager.get("/")
 async def root():
@@ -178,7 +178,11 @@ async def root():
 
 def links_for_item(base_url: str, item: dict):
     links = {
-        label: f"{base_url}/{label}" for label in ["details", "where", "type"]
+        label: f"{base_url}/{label}" for label in [
+            "details",
+            "where",
+            # "type",
+        ]
     }
     if not item.get('fixed', False):
         links['move'] = f"{base_url}/move/" + "{location}"
@@ -204,7 +208,8 @@ async def where(item, full=False):
     item = lookup(item)
     location = full_location(item)
     return {'item': tidy_dictionary(item),
-            'location': location if full else location_string(location)}
+            'nest': location,
+            'location': location_string(location)}
 
 @storage_manager.get("/{pattern}/what")
 async def what(pattern):
@@ -278,7 +283,7 @@ def attribute(item, attr):
             return {attr: value}
         if not (item_type := typedefs[item_type]['parent']):
             break
-    return {attr, None}
+    return {attr: None}
 
 @storage_manager.get("/{location}/contents")
 async def list_contents(location, recursive:bool = False):

@@ -21,8 +21,17 @@ app = Flask("storage")
 
 # CORS(app, origins=["*"])
 
+def finder_form():
+    return T.form()[
+        T.fieldset[
+            T.legend["Item finder"],
+            T.input(type="text", name="item", id="item_to_find"),
+            T.label(for_="item")["Name or barcode"],
+            T.button(type='submit')["Find item"]]]
+
 def titled_page(title, page, script="", body_params=None):
-    return str(exprpages.page_text(T.body(**(body_params or {}))[page],
+    return str(exprpages.page_text(T.body(**(body_params or {}))[finder_form(),
+                                                                 page],
                                    title=title,
                                    script_text=script))
 
@@ -30,60 +39,20 @@ def get_script():
     with open("static/storage_manager.js") as instream:
         return instream.read()
 
-def finder_form():
-    return T.div()[
-        T.form()[
-            T.fieldset[
-                T.legend["Item finder"],
-                T.input(type="text", name="item_to_find", id="item_to_find"),
-                T.label(for_="item")["Name or barcode"],
-                T.br,
-                T.button(type='button', onclick="find_item();")["Find item"]]],
-        T.p["Item location: ", T.span(id="location")[""]]]
-
-def details_form():
-    return T.div()[
-        T.form()[
-            T.fieldset[
-                T.legend["Item inspector"],
-                T.input(type="text", name="item_to_inspect", id="item_to_inspect"),
-                T.label(for_="item")["Name or barcode"],
-                T.br,
-                T.button(type='button', onclick="inspect_item();")["Inspect item"]]],
-        T.div(class_='inspection_details')[
-            T.p["Item location: ", T.span(id="location")[""]],
-            T.p["Item types: ", T.span(id="types")[""]],
-        ]]
-
-def placer_form():
-    return T.div()[
-        T.form()[
-            T.fieldset[
-                T.legend["Item placer"],
-                T.input(type="text", name="item_to_store", id="item_to_store"),
-                T.label(for_="item")["Name or barcode"],
-                T.br,
-                T.input(type="text", name="place", id="place"),
-                T.label(for_="item")["Name or barcode"],
-                T.br,
-                T.button(type='button', onclick="place_item();")["Place item"]]],
-        T.p["Item registered at location: ", T.span(id="location")[""]]]
-
 @app.route("/")
-def one_page_app():
-    return titled_page("Storage manager",
-                       T.div[switchable_panel("one_page_app_switcher",
-                                              panels={'Find': finder_form(),
-                                                      'Inspect': details_form(),
-                                                      'Store': placer_form()},
-                                              labels={'Find': "Find",
-                                                      'Inspect': "Inspect",
-                                                      'Store': "Store"},
-                                              order=['Find', 'Inspect', 'Store'],
-                                              initial='Find',
-                                              buttons_side='left')],
-                       script=get_script(),
-                       body_params={'onload': "startup();"})
+def home_page():
+    if (search_item := request.args.get('item')):
+        return item_home(search_item)
+    return titled_page(
+        "Makespace asset tracker",
+        T.div[
+            T.h1["Makespace asset tracker home page"],
+            finder_form(),
+            T.div[
+                T.h2["Top-level locations"],
+                T.ul[[
+                    T.li[T.a(href=f"{WEB}/{site}")[site]]
+                    for site in requests.get(f"{API}/sites").json()['sites']]]]])
 
 @app.route("/<item>")
 def item_home(item):
@@ -117,6 +86,10 @@ def item_home(item):
                       T.ul[[T.li[T.a(href=value)[key]]
                              for key, value in links.items()]]])
     return titled_page(title, page)
+
+@app.route("/item/<item>")
+def item_item(item):
+    return item_home(item)
 
 @app.route("/<typename>/type")
 def type_details(typename):

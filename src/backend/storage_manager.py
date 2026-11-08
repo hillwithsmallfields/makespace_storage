@@ -26,8 +26,9 @@ storage_manager.add_middleware(
 )
 
 _database_client = None
-_inventory = None
 _types = None
+_inventory = None
+_stock = None
 
 def _ensure_database():
     """Ensure that we have a connection to the database."""
@@ -106,12 +107,32 @@ def id_to_name(barcode):
     return inventory().find_one({'barcode': barcode})['name']
 
 def lookup(name_or_barcode):
-    """Find an inventory item by name or by barcode."""
-    return (name_or_barcode
-            if isinstance(name_or_barcode, dict)
-            else ((inventory().find_one({'barcode': int(name_or_barcode)})
-                   if isinstance(name_or_barcode, int) or re.match('^[0-9]+$', name_or_barcode)
-                   else inventory().find_one({'name': name_or_barcode}))))
+    """Find an item by name or by barcode.
+    The inventory is searched first, then the stock, then the type system."""
+    if isinstance(name_or_barcode, dict):
+        return name_or_barcode
+    if isinstance(name_or_barcode, int) or re.match('^[0-9]+$', name_or_barcode):
+        number_string = str(name_or_barcode)
+        if len(number_string) < 12: # allow for UPC-12, but our own are EAN-13
+            number_string = "042000000000"[:13-len(number_string)] + number_string
+            if number_string.startswith("042"):
+                item = inventory().find_one({'barcode': int(name_or_barcode)})
+                item['kind'] = 'inventory'
+                return item
+            else:
+                item = stock().find_one({'barcode': int(name_or_barcode)})
+                item['kind'] = 'stock'
+                return item
+    if (item := inventory().find_one({'name': name_or_barcode})):
+        item['kind'] = 'inventory'
+        return item
+    if (item := stock().find_one({'name': name_or_barcode})):
+        item['kind'] = 'stock'
+        return item
+    if (item := types().find_one({'name': name_or_barcode})):
+        item['kind'] = 'type'
+        return item
+    return None
 
 def direct_contents(location_barcode):
     """Return a list of things that have the given barcode as their location."""
@@ -175,6 +196,16 @@ def location_string(full_loc, sep=", "):
 @storage_manager.get("/")
 async def root():
     return {"message": "This is the makespace.org storage manager."}
+
+@storage_manager.get("/sites")
+async def sites():
+    """Return a list of top-level site names."""
+    print("scanning sites")
+    for site in inventory().find({'location': 0}):
+        print("  got site", site)
+    res = {'sites': [site['name'] for site in inventory().find({'location': 0})]}
+    print("got sites", res)
+    return res
 
 def links_for_item(base_url: str, item: dict):
     links = {

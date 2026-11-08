@@ -297,7 +297,7 @@ def details(item):
     }
 
 @storage_manager.get("/{item}/attribute/{attr}")
-def attribute(item, attr):
+def attribute(item, attr, local_only=None):
     """Return an attribute of an item.
     This may be defined by the item itself, or in its type hierarchy.
     The item may be specified by name or by barcode."""
@@ -305,6 +305,8 @@ def attribute(item, attr):
     item_dict = lookup(item)
     if attr in item_dict and item_dict[attr]:
         return {attr: item_dict[attr]}
+    if local_only:
+        return {attr: None}
     item_type = typedefs[item_dict['type']]['name']
     while True:
         if (value := typedefs[item_type][attr]):

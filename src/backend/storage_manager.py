@@ -200,12 +200,7 @@ async def root():
 @storage_manager.get("/sites")
 async def sites():
     """Return a list of top-level site names."""
-    print("scanning sites")
-    for site in inventory().find({'location': 0}):
-        print("  got site", site)
-    res = {'sites': [site['name'] for site in inventory().find({'location': 0})]}
-    print("got sites", res)
-    return res
+    return {'sites': [site['name'] for site in inventory().find({'location': 0})]}
 
 def links_for_item(base_url: str, item: dict):
     links = {

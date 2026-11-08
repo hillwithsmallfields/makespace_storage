@@ -48,6 +48,12 @@ def get_script():
     with open("static/storage_manager.js") as instream:
         return instream.read()
 
+def get_attribute(item, attribute, local_only=False, default=None):
+    return requests.get(f"{API}/{item}/attribute/{attribute}",
+                        params=({'local_only': True}
+                                if local_only
+                                else {})).json().get(attribute, default)
+
 @app.route("/")
 def home_page():
     if (search_item := request.args.get('item')):
@@ -66,40 +72,14 @@ def home_page():
 def item_item(item):
     return item_home(item)
 
-@app.route("/find")
-def find():
-    """Find where an item is stored."""
-    res = requests.get(f"{API}/where/{request.args.get("name")}").json()
-    return titled_page("Search result",
-                       T.p[res['item']['name'], " is ", res['location']])
-
-@app.route("/describe")
-def describe():
-    """Describe an item."""
-    return titled_page("Description",
-                       T.p["Description will go here"])
-
-@app.route("/store")
-def store():
-    """Indicate where an item is stored."""
-    return titled_page("Storage confirmation",
-                       T.p["Storage confirmation will go here"])
-
-@app.route("/consume")
-def consume():
-    """Indicate that a stock item has been used up."""
-    return titled_page("Item consumed",
-                       T.p["Consumption record will go here"])
-
 @app.route("/<item>")
 def item_home(item=None):
     if item is None:
         print("item not given path, trying query args")
         item = request.args.get('item')
-    print("item is now", item)
     res = requests.get(f"{API}/{item}").json()
     details = requests.get(f"{API}/{item}/details").json()
-    equipment_class = requests.get(f"{API}/{item}/attribute/equipment class").json()['equipment class']
+    equipment_class = get_attribute(item, 'equipment class')
     types = details['types']
     item_name = res['name']
     item_type = res['type']
@@ -113,6 +93,8 @@ def item_home(item=None):
                           f"{layer['preposition']} ",
                           T.a(href=f"{WEB}/{layer['name']}")[layer['name']]] for layer in location]],
                       " and is ", equipment_class, " equipment."]]]
+    if (picture := get_attribute(item, 'picture', local_only=False)):
+        page.append(T.img(src=picture))
     page.append(T.div[T.h2["Types"],
                       T.ul[[T.li[T.a(href=f"{WEB}/{t}/type")[t]] for t in types]]])
     if contents:
@@ -150,6 +132,31 @@ def type_list(typename):
 def details(item):
     return titled_page("Details",
                        T.div["details of ", item, " will go here."])
+
+@app.route("/find")
+def find():
+    """Find where an item is stored."""
+    res = requests.get(f"{API}/where/{request.args.get("name")}").json()
+    return titled_page("Search result",
+                       T.p[res['item']['name'], " is ", res['location']])
+
+@app.route("/describe")
+def describe():
+    """Describe an item."""
+    return titled_page("Description",
+                       T.p["Description will go here"])
+
+@app.route("/store")
+def store():
+    """Indicate where an item is stored."""
+    return titled_page("Storage confirmation",
+                       T.p["Storage confirmation will go here"])
+
+@app.route("/consume")
+def consume():
+    """Indicate that a stock item has been used up."""
+    return titled_page("Item consumed",
+                       T.p["Consumption record will go here"])
 
 if __name__ == "__main__":
     app.run(debug=True)

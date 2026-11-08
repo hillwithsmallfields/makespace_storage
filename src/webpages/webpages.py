@@ -66,6 +66,31 @@ def home_page():
 def item_item(item):
     return item_home(item)
 
+@app.route("/find")
+def find():
+    """Find where an item is stored."""
+    res = requests.get(f"{API}/where/{request.args.get("name")}").json()
+    return titled_page("Search result",
+                       T.p[res['item']['name'], " is ", res['location']])
+
+@app.route("/describe")
+def describe():
+    """Describe an item."""
+    return titled_page("Description",
+                       T.p["Description will go here"])
+
+@app.route("/store")
+def store():
+    """Indicate where an item is stored."""
+    return titled_page("Storage confirmation",
+                       T.p["Storage confirmation will go here"])
+
+@app.route("/consume")
+def consume():
+    """Indicate that a stock item has been used up."""
+    return titled_page("Item consumed",
+                       T.p["Consumption record will go here"])
+
 @app.route("/<item>")
 def item_home(item=None):
     if item is None:
@@ -125,31 +150,6 @@ def type_list(typename):
 def details(item):
     return titled_page("Details",
                        T.div["details of ", item, " will go here."])
-
-@app.route("/find")
-def find():
-    """Find where an item is stored."""
-    res = requests.get(f"{API}/where/{request.args.get("name")}").json()
-    return titled_page("Search result",
-                       T.p[res['item']['name'], " is ", res['location']])
-
-@app.route("/describe")
-def describe():
-    """Describe an item."""
-    return titled_page("Description",
-                       T.p["Description will go here"])
-
-@app.route("/store")
-def store():
-    """Indicate where an item is stored."""
-    return titled_page("Storage confirmation",
-                       T.p["Storage confirmation will go here"])
-
-@app.route("/consume")
-def consume():
-    """Indicate that a stock item has been used up."""
-    return titled_page("Item consumed",
-                       T.p["Consumption record will go here"])
 
 if __name__ == "__main__":
     app.run(debug=True)

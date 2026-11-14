@@ -413,6 +413,16 @@ def stock_contents(location):
 async def stocked(location):
     return stock_contents(location)
 
+@storage_manager.get("/{item}/levels")
+def stock_levels(item):
+    """Return the stock levels of an item."""
+    locs = lookup(item)['locations']
+    print("locs are", locs)
+    return {
+        lookup('0' + k)['name']: v
+        for k, v in locs.items()
+    }
+
 @storage_manager.get("/{pattern}/what")
 async def what(pattern):
     """List everything with a name matching the given pattern."""

@@ -160,6 +160,23 @@ def item_home(item=None):
                   T.p[summary]]]
     if (picture := get_attribute(item, 'picture', local_only=False)):
         page.append(T.img(src=picture))
+    if res['kind'] == 'stock':
+        page.append(T.table[
+            T.tr[T.th["Location"], T.th["Quantity"], T.th["Adjust by"]],
+            [[
+                T.tr[
+                    T.th[name],
+                    T.td[str(count)],
+                    T.td[T.form(action="/update_stock")[
+                        T.input(type='text', value="1"),
+                        T.input(type='submit', value='remove'),
+                        T.input(type='submit', value='set'),
+                        T.input(type='submit', value='add'),
+                    ]]
+                ]
+                for name, count in get_json(item, "/levels").items()
+            ]]
+        ])
     page.append(T.div[T.h2["Types"],
                       T.ul[[T.li[T.a(href=f"/{t}/type")[t]] for t in types]]])
     if inventory:

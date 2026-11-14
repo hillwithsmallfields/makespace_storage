@@ -48,14 +48,26 @@ def get_script():
     with open("static/storage_manager.js") as instream:
         return instream.read()
 
+def get_json(item, path, params=None):
+    """Get JSON about an item from the API server."""
+    response = requests.get(f"{API}/{item}" + path,
+                            params=params or {})
+    if response.status_code == 200:
+        return response.json()
+    raise HTTPException(status_code=response.status_code,
+                        details=f"Could not get {path} for {item}")
+
 def get_attribute(item, attribute, local_only=False, default=None):
-    return requests.get(f"{API}/{item}/attribute/{attribute}",
-                        params=({'local_only': True}
+    return get_json(item,
+                    f"/attribute/{attribute}",
+                    params=({'local_only': True}
                                 if local_only
-                                else {})).json().get(attribute, default)
+                                else {})).get(attribute, default)
 
 @app.route("/")
 def home_page():
+    """Return the top-level page for the site, if no search string was given.
+    Otherwise, look up the search string and return the page for the result."""
     if (search_item := request.args.get('item')):
         return item_home(search_item)
     return titled_page(
@@ -77,14 +89,14 @@ def item_home(item=None):
     if item is None:
         print("item not given path, trying query args")
         item = request.args.get('item')
-    res = requests.get(f"{API}/{item}").json()
-    details = requests.get(f"{API}/{item}/details").json()
-    equipment_class = get_attribute(item, 'equipment class')
+    res = get_json(item, "")
+    details = get_json(item, "/details")
+    equipment_class = get_attribute(item, 'equipment class', default="unclassified")
     types = details['types']
     item_name = res['name']
     item_type = res['type']
     links = res['links']
-    contents = requests.get(f"{API}/{item}/contents").json()['contents']
+    contents = get_json(item, "/contents")['contents']
     location = details['nest']
     title = f"{item_name} ({item_type})"
     page = [T.div[T.h1[title],
@@ -119,7 +131,7 @@ def type_details(typename):
 
 @app.route("/<typename>/list")
 def type_list(typename):
-    things = requests.get(f"{API}/{typename}/list_type").json()#['types']
+    things = get_json(typename, "/list_type")#['types']
     return titled_page("Type list",
                        T.div[T.p["List of " + typename],
                              T.ul[[

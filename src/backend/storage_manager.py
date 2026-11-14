@@ -3,11 +3,13 @@
 """API server for managing where we store physical things at makespace.org."""
 
 import csv
-import decouple
 import io
-import pymongo
 import re
 import urllib
+
+import decouple
+import pymongo
+
 from bson.objectid import ObjectId
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -15,7 +17,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 storage_manager = FastAPI()
 
-WEB = "http://127.0.0.1:5000"
+INVENTORY_BARCODE_BASE = "042000000000"
+INVENTORY_BARCODE_REGEXP = re.compile("^042[0-9]{10}$")
+BARCODE_REGEXP = re.compile("^[0-9]{1,13}$")
 
 storage_manager.add_middleware(
     CORSMiddleware,
@@ -87,7 +91,7 @@ def stock():
     Each row must define:
     - name
     - quantity
-    - location
+    - locations (as a dictionary of location barcode to quantity in that location)
     """
     global _stock
     if _stock is None:
@@ -106,32 +110,58 @@ def id_to_name(barcode):
     """Return the name of an item with the given barcode."""
     return inventory().find_one({'barcode': barcode})['name']
 
+def normalise_barcode(barcode):
+    """Return a barcode as a string, based on the given input which
+    may be a string or an int.
+
+    If it is a number with fewer than 12 digits, it is suffixed with
+    as many digits as needed from our inventory barcode numbering
+    base.  It may also be given as a dictionary, from which the
+    'barcode' entry is used, so this is as far as possible a universal
+    way of getting a barcode matching a description.
+
+    """
+    barcode_string = str(dict['barcode']
+                         if isinstance(barcode, dict)
+                         else barcode)
+    return (INVENTORY_BARCODE_BASE[:13-len(barcode_string)] + barcode_string
+            if len(barcode_string) < 12 # allow for UPC-12, but our own are EAN-13
+            else barcode_string)
+
 def lookup(name_or_barcode):
     """Find an item by name or by barcode.
-    The inventory is searched first, then the stock, then the type system."""
+
+    The argument may be a name, or a barcode given as a string or a
+    number.
+
+    The inventory is searched first, then the stock, then the type system.
+
+    Returns a dictionary representing the entire database entry for
+    the item, with the key 'kind' set to indicate what kind of item
+    was found: 'inventory', 'stock', or 'type'; or if a dictionary was
+    passed in as the argument and did not indicate its kind, it is
+    marked as being of an 'unknown' kind.
+    """
+
+    def mark_kind(item, kind):
+        item['kind'] = kind
+        return item
+
     if isinstance(name_or_barcode, dict):
+        if 'kind' not in name_or_barcode:
+            name_or_barcode['kind'] = 'unknown'
         return name_or_barcode
-    if isinstance(name_or_barcode, int) or re.match('^[0-9]+$', name_or_barcode):
-        number_string = str(name_or_barcode)
-        if len(number_string) < 12: # allow for UPC-12, but our own are EAN-13
-            number_string = "042000000000"[:13-len(number_string)] + number_string
-            if number_string.startswith("042"):
-                item = inventory().find_one({'barcode': int(name_or_barcode)})
-                item['kind'] = 'inventory'
-                return item
-            else:
-                item = stock().find_one({'barcode': int(name_or_barcode)})
-                item['kind'] = 'stock'
-                return item
+    if is_barcode(name_or_barcode):
+        barcode = normalise_barcode(name_or_barcode)
+        return mark_kind((inventory if is_inventory(barcode) else stock)()
+                         .find_one({'barcode': int(barcode)}),
+                         'inventory')
     if (item := inventory().find_one({'name': name_or_barcode})):
-        item['kind'] = 'inventory'
-        return item
+        return mark_kind(item, 'inventory')
     if (item := stock().find_one({'name': name_or_barcode})):
-        item['kind'] = 'stock'
-        return item
+        return mark_kind(item, 'stock')
     if (item := types().find_one({'name': name_or_barcode})):
-        item['kind'] = 'type'
-        return item
+        return mark_kind(item, 'type')
     return None
 
 def direct_contents(location_barcode):
@@ -195,6 +225,7 @@ def location_string(full_loc, sep=", "):
 
 @storage_manager.get("/")
 async def root():
+    """Return the root document of the API."""
     return {"message": "This is the makespace.org storage manager."}
 
 @storage_manager.get("/sites")
@@ -203,6 +234,7 @@ async def sites():
     return {'sites': [site['name'] for site in inventory().find({'location': 0})]}
 
 def links_for_item(base_url: str, item: dict):
+    """Return the API links for an item."""
     links = {
         label: f"{base_url}/{label}" for label in [
             "details",
@@ -212,7 +244,7 @@ def links_for_item(base_url: str, item: dict):
     }
     if not item.get('fixed', False):
         links['move'] = f"{base_url}/move/" + "{location}"
-    if False:
+    if False:                   # don't allow this while the project is at the demo stage
         links['delete'] = f"{base_url}/delete"
     if direct_contents(item['barcode']):
         links['contains'] = f"{base_url}/contains"
@@ -220,11 +252,11 @@ def links_for_item(base_url: str, item: dict):
 
 @storage_manager.get("/{item}")
 async def item_home(item, request: Request):
-    details = lookup(item)
-    return ({'name': details['name'],
-             'type': details['type'],
-             'links': links_for_item(request.url, details)}
-            if details
+    item_dict = lookup(item)
+    return ({'name': item_dict['name'],
+             'type': item_dict['type'],
+             'links': links_for_item(request.url, item_dict)}
+            if item_dict
             else {'links': {'new': f"request.url{item}/new"}})
 
 @storage_manager.get("/{item}/where")
@@ -272,9 +304,9 @@ def subtypes(top):
     result = set([top])
     while True:
         how_many = len(result)
-        for name, details in typedefs.items():
-            if details['parent'] in result:
-                result.add(details['name'])
+        for name, type_details in typedefs.items():
+            if type_details['parent'] in result:
+                result.add(type_details['name'])
         if len(result) == how_many:
             break
     return result
@@ -331,9 +363,19 @@ async def map_contents(location: int=0, items=None):
     # TODO: set the type of the resulting data
     return data         # TODO
 
+def is_barcode(code):
+    """Return whether a string looks like a barcode (rather than name).
+    If an int is given, it is assumed to be a barcode."""
+    return (isinstance(code, int)
+            or BARCODE_REGEXP.match(code))
+
+def is_inventory(barcode):
+    """Return whether a barcode is an inventory barcode."""
+    return INVENTORY_BARCODE_REGEXP.match(str(barcode))
+
 def is_stock(barcode):
-    # TODO: work out whether it is stock or inventory
-    return False
+    """Return whether a barcode is a stock barcode."""
+    return not is_inventory(barcode)
 
 @storage_manager.post("/{item}/move/{location}")
 async def store(item: str,
@@ -341,18 +383,17 @@ async def store(item: str,
                 quantity: int):
     """Mark that the item is stored in the given location."""
     barcode = lookup(item)['barcode']
-    if is_stock(barcode):
-        pass                    # TODO store stock separately, using quantity
-    else:
+    if is_inventory(barcode):
         inv = inventory()
         if inv.find_one({'barcode': location}):
             inv.update_one({'barcode': barcode},
                            {'$set': {'location': location}},
                            upsert=True)
             return {'barcode': barcode, 'location': location}
-        else:
-            raise HTTPException(status_code=404,
-                                detail=f"Location {location} not found when storing an item")
+        raise HTTPException(status_code=404,
+                            detail=f"Location {location} not found when storing an item")
+    else:
+        pass                    # TODO store stock separately, using quantity
 
 VIRTUAL_BARCODE_ISSUE_BASE = 1000000
 
@@ -417,22 +458,32 @@ def load_table(collection, text):
         raise HTTPException(status_code=500, detail='Something went wrong')
     return {"result": f"inserted or updated {count} entries"}
 
+def bring_to_front(left_keys, all_keys):
+    """Return a list of keys with specific ones brought to the front."""
+    return (left_keys + [key
+                         for key in all_keys
+                         if key not in left_keys and key != '_id'])
+
+def all_keys_of_all_documents(data):
+    """Return all the keys of all the documents."""
+    return set().union(*[frozenset(doc.keys())
+                         for doc in data])
+
 def dump_table(collection, left_keys):
     """Dump data from a table into CSV form."""
     data = list(collection.find({}))
     with io.StringIO() as outstream:
-        writer = csv.DictWriter(outstream,
-                                fieldnames=left_keys + [key
-                                                        for key in set().union(*[frozenset(doc.keys())
-                                                                                 for doc in data])
-                                                        if key not in left_keys and key != '_id'])
+        writer = csv.DictWriter(
+            outstream,
+            fieldnames=bring_to_front(left_keys,
+                                      all_keys_of_all_documents(data)))
         writer.writeheader()
         for row in data:
             writer.writerow({k: v for k, v in row.items() if k != '_id'})
         return StreamingResponse(outstream.getvalue(),
                                  # We could put this in optionally to get browsers to download the result
                                  # but this route is probably mostly for scripted use in which case we
-                                 # won't want that:
+                                 # won't want that as we'd prefer to get the data on stdout:
                                  # headers={"Content-Disposition": 'attachment; filename="export.csv"'},
                                  media_type="text/csv")
 

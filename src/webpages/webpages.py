@@ -23,7 +23,7 @@ app = Flask("storage")
 # CORS(app, origins=["*"])
 
 def finder_form():
-    return T.form(action=f"{WEB}/")[
+    return T.form(action="/")[
         T.fieldset[
             T.legend["Item finder"],
             T.input(type="text", name="item", id="item_to_find"),
@@ -42,10 +42,15 @@ def titled_page(title, page, script="", body_params=None):
                                                                  page,
                                                                  footer()],
                                    title=title,
-                                   script_text=script))
+                                   script_text=get_script(),
+                                   style_text=get_style()))
 
 def get_script():
     with open("static/storage_manager.js") as instream:
+        return instream.read()
+
+def get_style():
+    with open("static/storage_manager.css") as instream:
         return instream.read()
 
 def get_json(item, path, params=None):
@@ -54,8 +59,7 @@ def get_json(item, path, params=None):
                             params=params or {})
     if response.status_code == 200:
         return response.json()
-    raise HTTPException(status_code=response.status_code,
-                        details=f"Could not get {path} for {item}")
+    raise requests.exceptions.HTTPError(f"Could not get {path} for {item}: {response.status_code}")
 
 def get_attribute(item, attribute, local_only=False, default=None):
     return get_json(item,
@@ -77,8 +81,14 @@ def home_page():
             T.div[
                 T.h2["Top-level locations"],
                 T.ul[[
-                    T.li[T.a(href=f"{WEB}/{site}")[site]]
-                    for site in requests.get(f"{API}/sites").json()['sites']]]]])
+                    T.li[T.a(href=f"/{site}")[site]]
+                    for site in requests.get(f"{API}/sites").json()['sites']]]],
+            T.div[
+                T.h2["Top-level types"],
+                T.ul[[
+                    T.li[T.a(href=tlt)[tlt]]
+                    for tlt in requests.get(f"{API}/top-level-types").json()['types']
+                    ]]]])
 
 @app.route("/item/<item>")
 def item_item(item):
@@ -90,8 +100,30 @@ def item_home(item=None):
         print("item not given path, trying query args")
         item = request.args.get('item')
     res = get_json(item, "")
+    if  res['kind'] == 'type':
+        subtypes = [st
+                    for st in get_json(item, "/subtypes")
+                    if st != item]
+        parent_types = [pt
+                        for pt in get_json(item, "/parent_types")
+                        if pt != item]
+        title = f"Type {item}"
+        page = [T.div(class_='types')
+                [T.h1[title]],
+                T.p[T.a(href=f"/{item}/list")[f"List objects of type {item}"]]]
+        if parent_types:
+            print("adding parent types", parent_types)
+            page.append(T.div(class_='parent_types')[T.h2["Parent types"],
+                                                     T.ul[[T.li[T.a(href=parent)[parent]]
+                                                     for parent in parent_types]]])
+        if subtypes:
+            print("adding subtypes", subtypes)
+            page.append(T.div(class_='subtypes')[T.h2["Subtypes"],
+                                                 T.ul[[T.li[T.a(href=subtype)[subtype]]
+                                                     for subtype in subtypes]]])
+        return titled_page(title, page)
     details = get_json(item, "/details")
-    equipment_class = get_attribute(item, 'equipment class', default="unclassified")
+    equipment_class = get_attribute(item, 'equipment class', default=None)
     types = details['types']
     item_name = res['name']
     item_type = res['type']
@@ -99,20 +131,26 @@ def item_home(item=None):
     contents = get_json(item, "/contents")['contents']
     location = details['nest']
     title = f"{item_name} ({item_type})"
-    page = [T.div[T.h1[title],
-                  T.p[item_name, " is ",
-                      [[T.span[
-                          f"{layer['preposition']} ",
-                          T.a(href=f"{WEB}/{layer['name']}")[layer['name']]] for layer in location]],
-                      " and is ", equipment_class, " equipment."]]]
+    summary = [item_name, " is ",
+               [[T.span[
+                   f"{layer['preposition']} ",
+                   T.a(href=f"/{layer['name']}")[layer['name']]] for layer in location]],
+               ]
+    if equipment_class:
+        summary.append([" and is ",
+                        T.span(class_=f"{equipment_class}_equipment")[equipment_class,
+                                                                      " equipment"]])
+    summary.append(".")
+    page = [T.div[T.h1(class_=f"{equipment_class}_equipment" or "other")[title],
+                  T.p[summary]]]
     if (picture := get_attribute(item, 'picture', local_only=False)):
         page.append(T.img(src=picture))
     page.append(T.div[T.h2["Types"],
-                      T.ul[[T.li[T.a(href=f"{WEB}/{t}/type")[t]] for t in types]]])
+                      T.ul[[T.li[T.a(href=f"/{t}/type")[t]] for t in types]]])
     if contents:
         page.append(T.div[T.h2["Contents"],
                           T.ul[[
-                              T.li[T.a(href=f"{WEB}/{dweller['name']}")[dweller['name']]]
+                              T.li[T.a(href=f"/{dweller['name']}")[dweller['name']]]
                               for dweller in contents
                           ]]])
     # TODO: show the types, with a link on each to get the details of the type, which will also have a link to list everything of that type
@@ -126,7 +164,7 @@ def item_home(item=None):
 def type_details(typename):
     return titled_page("Type details",
                        T.div[T.p["Details of " + typename],
-                             T.a(href=f"{WEB}/{typename}/list")["List all things of type ", typename]
+                             T.a(href=f"/{typename}/list")["List all things of type ", typename]
                              ])
 
 @app.route("/<typename>/list")
@@ -135,7 +173,7 @@ def type_list(typename):
     return titled_page("Type list",
                        T.div[T.p["List of " + typename],
                              T.ul[[
-                                 T.li[T.a(href=f"{WEB}/{thing['name']}")[thing['name']]]
+                                 T.li[T.a(href=f"/{thing['name']}")[thing['name']]]
                                  for thing in things
                                  ]]
                              ])

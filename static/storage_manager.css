@@ -1,0 +1,17 @@
+<style>
+
+.red_equipment{
+    color: red;
+}
+.amber_equipment{
+    color: orange;
+}
+.green_equipment{
+    color: green;
+}
+
+div.types {
+    background-color=#ffff80;
+}
+
+</style>

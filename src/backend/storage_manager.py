@@ -233,6 +233,12 @@ async def sites():
     """Return a list of top-level site names."""
     return {'sites': [site['name'] for site in inventory().find({'location': 0})]}
 
+@storage_manager.get("/top-level-types")
+def top_level_types():
+    """Return the top-level types.
+    This is the types that have no parent type."""
+    return {'types': [t['name'] for t in types().find({'parent': ""})]}
+
 def links_for_item(base_url: str, item: dict):
     """Return the API links for an item."""
     links = {
@@ -253,9 +259,13 @@ def links_for_item(base_url: str, item: dict):
 @storage_manager.get("/{item}")
 async def item_home(item, request: Request):
     item_dict = lookup(item)
-    return ({'name': item_dict['name'],
-             'type': item_dict['type'],
-             'links': links_for_item(request.url, item_dict)}
+    return (({'name': item_dict['name'],
+              'kind': item_dict['kind']}
+             if item_dict['kind'] == 'type'
+             else {'name': item_dict['name'],
+                   'type': item_dict['type'],
+                   'kind': item_dict['kind'],
+                   'links': links_for_item(request.url, item_dict)})
             if item_dict
             else {'links': {'new': f"request.url{item}/new"}})
 
@@ -279,14 +289,17 @@ async def what(pattern):
 def hierarchical_type(item):
     """Return hierarchical type for an item.
     The item may be specified by name or by barcode."""
-    typedefs = by_name(types())
     item_dict = lookup(item)
     if item_dict is None:
         raise HTTPException(status_code=404, detail="Item not found")
-    ty = item_dict['type']
+    return parent_type_list(item_dict['type'])
+
+def parent_type_list(ty):
+    """Return the parent types of a type."""
+    typedefs = by_name(types())
     result = [ty]
     while True:
-        ty = typedefs[ty]['parent']
+        ty = typedefs.get(ty, {}).get('parent', None)
         if ty:
             result.append(ty)
         else:
@@ -298,8 +311,8 @@ def add_types(item):
     item['types'] = hierarchical_type(item)
     return item
 
-def subtypes(top):
-    """Return all the subtypes of a top type, hierarchically."""
+def subtypes_set(top):
+    """Return the set of all the subtypes of a top type, hierarchically."""
     typedefs = by_name(types())
     result = set([top])
     while True:
@@ -311,11 +324,21 @@ def subtypes(top):
             break
     return result
 
+@storage_manager.get("/{type_name}/subtypes")
+async def subtypes(type_name):
+    """Return the subtypes of a given type."""
+    return list(subtypes_set(type_name))
+
+@storage_manager.get("/{type_name}/parent_types")
+async def parent_types(type_name):
+    """Return the parent types of a given type."""
+    return parent_type_list(type_name)
+
 @storage_manager.get("/{type_name}/list_type")
 async def by_type(type_name):
     """List everything of a given type."""
     return [tidy_dictionary(add_types(x))
-            for x in inventory().find({'type': {'$in': list(subtypes(type_name))}})]
+            for x in inventory().find({'type': {'$in': list(subtypes_set(type_name))}})]
 
 @storage_manager.get("/{item}/details")
 def details(item):
@@ -339,12 +362,15 @@ def attribute(item, attr, local_only=None):
         return {attr: item_dict[attr]}
     if local_only:
         return {attr: None}
-    item_type = typedefs[item_dict['type']]['name']
-    while True:
-        if (value := typedefs[item_type][attr]):
-            return {attr: value}
-        if not (item_type := typedefs[item_type]['parent']):
-            break
+    if item_dict['type'] in typedefs:
+        item_type = typedefs[item_dict['type']]['name']
+        while True:
+            if item_type not in typedefs:
+                return {attr: None}
+            if (value := typedefs[item_type][attr]):
+                return {attr: value}
+            if not (item_type := typedefs[item_type]['parent']):
+                break
     return {attr: None}
 
 @storage_manager.get("/{location}/contents")

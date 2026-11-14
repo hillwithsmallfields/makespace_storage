@@ -39,12 +39,13 @@ same type of item, for example from different suppliers.
 Locations
 ---------
 
-Each inventory item has a location, which is itself an inventory item
-which in turn has a location; thus, there is a location hierarchy to
-pin down where something is: for example, it could be in a particular
-box, which is on a shelf, which is in a set of shelves, which is in a
-room, which is in a building; each of those location levels is an
-inventory item, and will have a barcode sticker on it.
+Each inventory item has a location (such as a room or a shelf), which
+is itself an inventory item which in turn has a location; thus, there
+is a location hierarchy to pin down where something is: for example,
+it could be in a particular box, which is on a shelf, which is in a
+set of shelves, which is in a room, which is in a building; each of
+those location levels is an inventory item, and will have a barcode
+sticker on it.
 
 Stock items may have multiple locations, as all the stock of one type
 may not fit in a single location.
@@ -67,8 +68,9 @@ interface, but will integrate the mobile's barcode scanner facility.
 
 The URL paths for most operations start with the barcode or name of
 the item, so we can make the barcode labels self-explanatory, with
-text like "assets.makespace.org/<n>" above the printed number.  This
-gives each item a generated home page.
+text like "assets.makespace.org/\<n\>" above the printed number.  This
+gives each item a generated home page, which you can reach by typing
+the text of the barcode label into a browser address bar.
 
 If the start of the URL path is neither a barcode number nor the name
 of an inventory item, the server also searches for matching stock,

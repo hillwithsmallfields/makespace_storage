@@ -2,3 +2,4 @@
 
 curl http://127.0.0.1:8000/dump-types -X GET > /tmp/dumped-types.csv
 curl http://127.0.0.1:8000/dump-inventory -X GET > /tmp/dumped-inventory.csv
+curl http://127.0.0.1:8000/dump-stock -X GET > /tmp/dumped-stock.csv

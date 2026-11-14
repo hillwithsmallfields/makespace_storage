@@ -92,12 +92,30 @@ def home_page():
 
 @app.route("/item/<item>")
 def item_item(item):
+    """Serve the home page for an item."""
     return item_home(item)
+
+def summarise_one_location(location):
+    """Summarise a location."""
+    return [[T.span[f"{layer['preposition']} ",
+                    T.a(href=f"/{layer['name']}")[layer['name']]] for layer in location]]
+
+def summarise_location(location):
+    """Summarise a location or collection of locations."""
+    if not location:
+        return "at large in the world"
+    if isinstance(location[0], dict):
+        return summarise_one_location(location)
+    locs = []
+    for loc in location:
+        if locs:
+            locs.append(" and ")
+        locs.append(summarise_one_location(loc))
+    return locs
 
 @app.route("/<item>")
 def item_home(item=None):
     if item is None:
-        print("item not given path, trying query args")
         item = request.args.get('item')
     res = get_json(item, "")
     if  res['kind'] == 'type':
@@ -112,12 +130,10 @@ def item_home(item=None):
                 [T.h1[title]],
                 T.p[T.a(href=f"/{item}/list")[f"List objects of type {item}"]]]
         if parent_types:
-            print("adding parent types", parent_types)
             page.append(T.div(class_='parent_types')[T.h2["Parent types"],
                                                      T.ul[[T.li[T.a(href=parent)[parent]]
                                                      for parent in parent_types]]])
         if subtypes:
-            print("adding subtypes", subtypes)
             page.append(T.div(class_='subtypes')[T.h2["Subtypes"],
                                                  T.ul[[T.li[T.a(href=subtype)[subtype]]
                                                      for subtype in subtypes]]])
@@ -128,14 +144,13 @@ def item_home(item=None):
     item_name = res['name']
     item_type = res['type']
     links = res['links']
-    contents = get_json(item, "/contents")['contents']
+    contents = get_json(item, "/contents")
+    inventory = contents['inventory']
+    stock = contents['stock']
     location = details['nest']
     title = f"{item_name} ({item_type})"
     summary = [item_name, " is ",
-               [[T.span[
-                   f"{layer['preposition']} ",
-                   T.a(href=f"/{layer['name']}")[layer['name']]] for layer in location]],
-               ]
+               summarise_location(location)]
     if equipment_class:
         summary.append([" and is ",
                         T.span(class_=f"{equipment_class}_equipment")[equipment_class,
@@ -147,12 +162,14 @@ def item_home(item=None):
         page.append(T.img(src=picture))
     page.append(T.div[T.h2["Types"],
                       T.ul[[T.li[T.a(href=f"/{t}/type")[t]] for t in types]]])
-    if contents:
-        page.append(T.div[T.h2["Contents"],
-                          T.ul[[
-                              T.li[T.a(href=f"/{dweller['name']}")[dweller['name']]]
-                              for dweller in contents
-                          ]]])
+    if inventory:
+        page.append(T.div[T.h2["Inventory contents"],
+                          T.ul[[T.li[T.a(href=f"/{dweller['name']}")[dweller['name']]]
+                                for dweller in inventory]]])
+    if stock:
+        page.append(T.div[T.h2["Stock contents"],
+                          T.ul[[T.li[T.a(href=f"/{dweller['name']}")[dweller['name']]]
+                                for dweller in stock]]])
     # TODO: show the types, with a link on each to get the details of the type, which will also have a link to list everything of that type
     # TODO: use the 'fits' attribute to construct where something can be moved to
     page.append(T.div[T.h2["API links"],

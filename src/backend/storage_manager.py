@@ -4,6 +4,7 @@
 
 import csv
 import io
+import json
 import re
 import urllib
 
@@ -166,7 +167,8 @@ def lookup(name_or_barcode):
 
 def direct_contents(location_barcode):
     """Return a list of things that have the given barcode as their location."""
-    return list(tidy_dictionary(d) for d in inventory().find({'location': location_barcode}))
+    return list(tidy_dictionary(d)
+                for d in inventory().find({'location': location_barcode}))
 
 def add_contents(entry):
     """Add to this entry a 'contents' list of the things that list it as their location.
@@ -177,7 +179,7 @@ def add_contents(entry):
             add_contents(thing)
         entry['contents'] = things
 
-def contents(location, recursive=False):
+def inventory_contents(location, recursive=False):
     """Return the contents of the given location.
     The location may be given by barcode or name.
     With the recursive flag, add a 'contents' entry for each item."""
@@ -201,27 +203,142 @@ def tidy_dictionary(dictionary):
     return {k: v for k, v in dictionary.items()
             if v != "" and not isinstance(v, ObjectId)}
 
-def full_location(item):
-    """Return the full hierarchical location data for an item.
-    The item may be given as a barcode or a dictionary."""
+def fill_out_location(location_name):
+    """Fill out an immediate location with its surrounding locations."""
+    if location_name in (0, "0", "", None):
+        return []
     typedefs = by_name(types())
     result = []
     countdown = 8               # in case of looping types
     inv = inventory()
-    item = lookup(item)
-    while (item := inv.find_one({'barcode': item['location']})):
+    while (item := inv.find_one({'barcode': int(location_name)})):
         item['preposition'] = typedefs[item['type']]['preposition']
+        location_name = item['location']
         result.append(tidy_dictionary(item))
         countdown -= 1
         if countdown == 0:
             break
     return result
 
+def full_location(item):
+    """Return the full hierarchical location data for an item.
+    The item may be given as a barcode or a dictionary."""
+    item = lookup(item)
+    match item['kind']:
+        case 'inventory':
+            return fill_out_location(item['location'])
+        case 'stock':
+            return [fill_out_location(partial_stock)
+                    for partial_stock in item['locations']]
+        case _:
+            return []
+
 def location_string(full_loc, sep=", "):
     """Return a string summarising the given hierarchical location data."""
-    return sep.join(
-        f"{surrounder['preposition']} {surrounder['name']}"
-        for surrounder in full_loc)
+    return ((";".join([location_string(sub) for sub in full_loc])
+             if isinstance(full_loc[0], list)
+             else sep.join(f"{surrounder['preposition']} {surrounder['name']}"
+                           for surrounder in full_loc))
+            if full_loc
+            else "")
+
+def convert_string(raw):
+    """Convert a string to int or float if possible;
+    or JSON if it looks likely."""
+    if raw.startswith('{') and raw.endswith('}'):
+        try:
+            jtext = raw.replace("'", '"')
+            return json.loads(jtext)
+        except Exception as jsonerror:
+            return raw
+    try:
+        return int(raw)
+    except ValueError:
+        try:
+            return float(raw)
+        except ValueError:
+            return raw
+
+def convert_dict_entries(row):
+    """Convert strings in the data to int or float if possible;
+    or JSON if it looks likely."""
+    return {k: convert_string(v) for k, v in row.items()}
+
+def load_table(collection, text, key='name'):
+    """Load data into a database collection from a CSV POST body."""
+    count = 0
+    try:
+        for row in csv.DictReader(io.StringIO(text)):
+            collection.update_one({'name': row[key]},
+                                  {'$set': convert_dict_entries(row)},
+                                  upsert=True)
+            count += 1
+    except Exception as e:
+        print("problem while uploading a data table:", e)
+        raise HTTPException(status_code=500, detail='Something went wrong')
+    return {"result": f"inserted or updated {count} entries"}
+
+def bring_to_front(left_keys, all_keys):
+    """Return a list of keys with specific ones brought to the front."""
+    return (left_keys + [key
+                         for key in all_keys
+                         if key not in left_keys and key != '_id'])
+
+def all_keys_of_all_documents(data):
+    """Return all the keys of all the documents."""
+    return set().union(*[frozenset(doc.keys())
+                         for doc in data])
+
+def dump_table(collection, left_keys):
+    """Dump data from a table into CSV form."""
+    data = list(collection.find({}))
+    with io.StringIO() as outstream:
+        writer = csv.DictWriter(
+            outstream,
+            fieldnames=bring_to_front(left_keys,
+                                      all_keys_of_all_documents(data)))
+        writer.writeheader()
+        for row in data:
+            writer.writerow({k: v for k, v in row.items() if k != '_id'})
+        return StreamingResponse(outstream.getvalue(),
+                                 # We could put this in optionally to get browsers to download the result
+                                 # but this route is probably mostly for scripted use in which case we
+                                 # won't want that as we'd prefer to get the data on stdout:
+                                 # headers={"Content-Disposition": 'attachment; filename="export.csv"'},
+                                 media_type="text/csv")
+
+# All the paths which begin with commands must come before the path "/":
+
+@storage_manager.post("/load-types")
+async def load_types(request: Request):
+    """Load data into the database types from a CSV POST body."""
+    return load_table(types(),
+                      (await request.body()).decode("utf-8"))
+
+@storage_manager.get("/dump-types")
+async def dump_types():
+    """Return the database types as CSV text."""
+    return dump_table(types(), left_keys=['name', 'parent'])
+
+@storage_manager.post("/load-inventory")
+async def load_inventory(request: Request):
+    """Load data into the database inventory from a CSV POST body."""
+    return load_table(inventory(), (await request.body()).decode("utf-8"))
+
+@storage_manager.get("/dump-inventory")
+async def dump_inventory():
+    """Return the database inventory as CSV text."""
+    return dump_table(inventory(), left_keys=['barcode', 'name', 'type', 'location', 'square'])
+
+@storage_manager.post("/load-stock")
+async def load_stock(request: Request):
+    """Load data into the database stock from a CSV POST body."""
+    return load_table(stock(), (await request.body()).decode("utf-8"), key='type')
+
+@storage_manager.get("/dump-stock")
+async def dump_stock():
+    """Return the database stock as CSV text."""
+    return dump_table(stock(), left_keys=['name', 'quantity', 'location'])
 
 @storage_manager.get("/")
 async def root():
@@ -274,10 +391,27 @@ async def where(item, full=False):
     """Return where an item is located.
     The item may be specified by name or by id (barcode)."""
     item = lookup(item)
-    location = full_location(item)
-    return {'item': tidy_dictionary(item),
-            'nest': location,
-            'location': location_string(location)}
+    match item['kind']:
+        case 'inventory':
+            location = full_location(item)
+            return {'item': tidy_dictionary(item),
+                    'nest': location,
+                    'location': location_string(location)}
+        case 'stock':
+            locations = item['locations']
+            return {'name': name,
+                    'locations': locations}
+        case _:
+            return {}
+
+def stock_contents(location):
+    """Return what is stocked at this location."""
+    return [loc for loc in stock().find({
+        f"locations.{str(lookup(location)['barcode'])}": {"$gt": 0}})]
+
+@storage_manager.get("/{location}/stocked")
+async def stocked(location):
+    return stock_contents(location)
 
 @storage_manager.get("/{pattern}/what")
 async def what(pattern):
@@ -377,8 +511,11 @@ def attribute(item, attr, local_only=None):
 async def list_contents(location, recursive:bool = False):
     """List everything stored in the given location."""
     return {'location': location,
-            'contents': [tidy_dictionary(x) for x in contents(location,
-                                                              recursive)]}
+            'inventory': [tidy_dictionary(x)
+                          for x in inventory_contents(location,
+                                                      recursive)],
+            'stock': [tidy_dictionary(x)
+                      for x in stock_contents(location)]}
 
 @storage_manager.get("/map")
 async def map_contents(location: int=0, items=None):
@@ -455,91 +592,3 @@ async def delete_item(item: str):
     barcode = deledendum['barcode']
     inventory().delete_one({'barcode': barcode})
     return {'deleted': barcode}
-
-def convert_string(raw):
-    """Convert a string to int or float if possible."""
-    try:
-        return int(raw)
-    except ValueError:
-        try:
-            return float(raw)
-        except ValueError:
-            return raw
-
-def convert_dict_entries(row):
-    """Convert strings in the data to int or float if possible."""
-    return {k: convert_string(v) for k, v in row.items()}
-
-def load_table(collection, text):
-    """Load data into a database collection from a CSV POST body."""
-    count = 0
-    try:
-        for row in csv.DictReader(io.StringIO(text)):
-            collection.update_one({'name': row['name']},
-                                  {'$set': convert_dict_entries(row)},
-                                  upsert=True)
-            count += 1
-    except Exception as e:
-        print("problem while uploading a data table:", e)
-        raise HTTPException(status_code=500, detail='Something went wrong')
-    return {"result": f"inserted or updated {count} entries"}
-
-def bring_to_front(left_keys, all_keys):
-    """Return a list of keys with specific ones brought to the front."""
-    return (left_keys + [key
-                         for key in all_keys
-                         if key not in left_keys and key != '_id'])
-
-def all_keys_of_all_documents(data):
-    """Return all the keys of all the documents."""
-    return set().union(*[frozenset(doc.keys())
-                         for doc in data])
-
-def dump_table(collection, left_keys):
-    """Dump data from a table into CSV form."""
-    data = list(collection.find({}))
-    with io.StringIO() as outstream:
-        writer = csv.DictWriter(
-            outstream,
-            fieldnames=bring_to_front(left_keys,
-                                      all_keys_of_all_documents(data)))
-        writer.writeheader()
-        for row in data:
-            writer.writerow({k: v for k, v in row.items() if k != '_id'})
-        return StreamingResponse(outstream.getvalue(),
-                                 # We could put this in optionally to get browsers to download the result
-                                 # but this route is probably mostly for scripted use in which case we
-                                 # won't want that as we'd prefer to get the data on stdout:
-                                 # headers={"Content-Disposition": 'attachment; filename="export.csv"'},
-                                 media_type="text/csv")
-
-@storage_manager.post("/load-types")
-async def load_types(request: Request):
-    """Load data into the database types from a CSV POST body."""
-    return load_table(types(),
-                      (await request.body()).decode("utf-8"))
-
-@storage_manager.get("/dump-types")
-async def dump_types():
-    """Return the database types as CSV text."""
-    return dump_table(types(), left_keys=['name', 'parent'])
-
-@storage_manager.post("/load-inventory")
-async def load_inventory(request: Request):
-    """Load data into the database inventory from a CSV POST body."""
-    return load_table(inventory(), (await request.body()).decode("utf-8"))
-
-@storage_manager.get("/dump-inventory")
-async def dump_inventory():
-    """Return the database inventory as CSV text."""
-    return dump_table(inventory(), left_keys=['barcode', 'name', 'type', 'location', 'square'])
-
-@storage_manager.post("/load-stock")
-async def load_stock(request: Request):
-    """Load data into the database stock from a CSV POST body."""
-    return load_table(stock(), (await request.body()).decode("utf-8"))
-
-@storage_manager.get("/dump-stock")
-async def dump_stock():
-    """Return the database stock as CSV text."""
-    return dump_table(stock(), left_keys=['name', 'quantity', 'location'])

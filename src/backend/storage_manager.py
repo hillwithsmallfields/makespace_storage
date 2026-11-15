@@ -375,6 +375,8 @@ def links_for_item(base_url: str, item: dict):
 
 @storage_manager.get("/{item}")
 async def item_home(item, request: Request):
+    """Return a 'home page' for the item.
+    If the item does not exist, return a result to help create it."""
     item_dict = lookup(item)
     return (({'name': item_dict['name'],
               'kind': item_dict['kind']}
@@ -384,7 +386,8 @@ async def item_home(item, request: Request):
                    'kind': item_dict['kind'],
                    'links': links_for_item(request.url, item_dict)})
             if item_dict
-            else {'links': {'new': f"request.url{item}/new"}})
+            else {'links': {'new': f"{request.url}/new"},
+                  'kind': 'unknown_new'})
 
 @storage_manager.get("/{item}/where")
 async def where(item, full=False):

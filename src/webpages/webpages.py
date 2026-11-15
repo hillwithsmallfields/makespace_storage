@@ -6,7 +6,7 @@ import datetime
 import json
 import requests
 
-from flask import Flask, request
+from flask import Flask, request, redirect
 # from flask_cors import CORS
 
 from expressionive.expressionive import htmltags as T
@@ -113,11 +113,55 @@ def summarise_location(location):
         locs.append(summarise_one_location(loc))
     return locs
 
+def inventory_creator_form(item_name):
+    return T.div[T.p["inventory creator for ", item_name]]
+
+def stock_creator_form(item_name):
+    return T.div[T.p["stock creator for ", item_name]]
+
+def type_creator_form(item_name):
+    return T.div[T.p["type creator for ", item_name]]
+
+@app.route("/<item>/new")
+def create_something_page(item):
+    return titled_page(f"Creating {item}",
+                       T.div["Creating a specific kind of thing"]
+                       if 'type' in request.args
+                       else (T.div[
+                               switchable_panel(switcher_id='creator_switcher',
+                                                panels={
+                                                    'inventory': inventory_creator_form(item),
+                                                    'stock': stock_creator_form(item),
+                                                    'type': type_creator_form(item),
+                                                },
+                                                labels={
+                                                    'inventory': "Inventory item",
+                                                    'stock': "Stock item",
+                                                    'type': "Type",
+                                                },
+                                                order=['inventory', 'stock', 'type'],
+                                                buttons_side='top',
+                                                initial='inventory')
+                               # T.form(action=f"/{item}/new")[
+                               #     "Create a ",
+                               #     T.select(name='type', id='type')[
+                               #         T.option(value='inventory')["Inventory item"],
+                               #         T.option(value='stock')["Stock item"],
+                               #         T.option(value='type')["Type"],
+                               #     ],
+                               #     " called ",
+                               #     T.input(type_='text', value=item),
+                               #     T.input(type_='submit', value='Create')]
+                       ]))
+
 @app.route("/<item>")
 def item_home(item=None):
     if item is None:
         item = request.args.get('item')
     res = get_json(item, "")
+    if res['kind'] == 'unknown_new':
+        # this is an API link, and I need to make it into a web server one
+        return redirect(res['links']['new'].replace(API, WEB))
     if  res['kind'] == 'type':
         subtypes = [st
                     for st in get_json(item, "/subtypes")

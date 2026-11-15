@@ -32,6 +32,7 @@ storage_manager.add_middleware(
 
 _database_client = None
 _types = None
+_stock_types = None
 _inventory = None
 _stock = None
 
@@ -62,6 +63,19 @@ def types():
         _types = _ensure_database()['types']
         _types.create_index('name', unique=True) # ignored if it already exists
     return _types
+
+def stock_types():
+    """Get the stock types collection from the database.
+
+    Each row must define a 'name', and may define:
+    - parent (a parent type, except at the top level)
+    - preposition (if this is a type of storage location)
+    """
+    global _types
+    if _stock_types is None:
+        _stock_types = _ensure_database()['types']
+        _stock_types.create_index('name', unique=True) # ignored if it already exists
+    return _stock_types
 
 def inventory():
     """Get the inventory collection from the database.
@@ -320,6 +334,17 @@ async def dump_types():
     """Return the database types as CSV text."""
     return dump_table(types(), left_keys=['name', 'parent'])
 
+@storage_manager.post("/load-stock-types")
+async def load_stock_types(request: Request):
+    """Load data into the stock database types from a CSV POST body."""
+    return load_table(types(),
+                      (await request.body()).decode("utf-8"))
+
+@storage_manager.get("/dump-stock-types")
+async def dump_stock_types():
+    """Return the stock database types as CSV text."""
+    return dump_table(types(), left_keys=['name', 'parent'])
+
 @storage_manager.post("/load-inventory")
 async def load_inventory(request: Request):
     """Load data into the database inventory from a CSV POST body."""
@@ -350,11 +375,51 @@ async def sites():
     """Return a list of top-level site names."""
     return {'sites': [site['name'] for site in inventory().find({'location': 0})]}
 
+@storage_manager.get("/inventory-types")
+def inventory_types():
+    """Return all the inventory types."""
+    return {'types': [t['name'] for t in types().find({})]}
+
+@storage_manager.get("/stock-types")
+def stock_types():
+    """Return all the stock types."""
+    return {'types': [t['name'] for t in stock_types().find({})]}
+
 @storage_manager.get("/top-level-types")
 def top_level_types():
     """Return the top-level types.
     This is the types that have no parent type."""
     return {'types': [t['name'] for t in types().find({'parent': ""})]}
+
+VIRTUAL_BARCODE_ISSUE_BASE = 1000000
+
+# @storage_manager.post("/{name}/new/{item_type}/{location}/{barcode}")
+# async def new_item(name: str, item_type: str, location: int, barcode: int, request: Request):
+#     """Create a new item.
+
+#     An item ID may be given (for example, from a barcode label you have stuck onto something)
+#     but if it is not given, one will be created for it.
+
+#     Further fields may be given in the request body."""
+#     inv = inventory()
+#     if barcode:
+#         if inv.find_one({'barcode': barcode}):
+#             raise HTTPException(status_code=500, detail=f'Barcode {barcode} already in use')
+#     else:
+#         barcode = 1 + max(VIRTUAL_BARCODE_ISSUE_BASE,
+#                           inv.find({}).sort({'barcode': -1}).limit(1).next()['barcode'])
+#     inv.insert_one({'barcode': barcode,
+#                     'name': name,
+#                     'type': item_type,
+#                     'location': location}
+#                    # further fields may be given in the request body
+#                    | await request.json())
+#     return {'result': "not done"} # TODO
+
+@storage_manager.post("/new_inventory")
+def new_inventory_item():
+    print("in new_inventory_item")
+    return {'created': "inventory item"}
 
 def links_for_item(base_url: str, item: dict):
     """Return the API links for an item."""
@@ -377,6 +442,7 @@ def links_for_item(base_url: str, item: dict):
 async def item_home(item, request: Request):
     """Return a 'home page' for the item.
     If the item does not exist, return a result to help create it."""
+    print("in item_home")
     item_dict = lookup(item)
     return (({'name': item_dict['name'],
               'kind': item_dict['kind']}
@@ -570,31 +636,6 @@ async def store(item: str,
                             detail=f"Location {location} not found when storing an item")
     else:
         pass                    # TODO store stock separately, using quantity
-
-VIRTUAL_BARCODE_ISSUE_BASE = 1000000
-
-@storage_manager.post("/{name}/new/{item_type}/{location}/{barcode}")
-async def new_item(name: str, item_type: str, location: int, barcode: int, request: Request):
-    """Create a new item.
-
-    An item ID may be given (for example, from a barcode label you have stuck onto something)
-    but if it is not given, one will be created for it.
-
-    Further fields may be given in the request body."""
-    inv = inventory()
-    if barcode:
-        if inv.find_one({'barcode': barcode}):
-            raise HTTPException(status_code=500, detail=f'Barcode {barcode} already in use')
-    else:
-        barcode = 1 + max(VIRTUAL_BARCODE_ISSUE_BASE,
-                          inv.find({}).sort({'barcode': -1}).limit(1).next()['barcode'])
-    inv.insert_one({'barcode': barcode,
-                    'name': name,
-                    'type': item_type,
-                    'location': location}
-                   # further fields may be given in the request body
-                   | await request.json())
-    return {'result': "not done"} # TODO
 
 @storage_manager.post("/{item}/delete")
 async def delete_item(item: str):

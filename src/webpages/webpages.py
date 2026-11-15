@@ -26,8 +26,8 @@ def finder_form():
     return T.form(action="/")[
         T.fieldset[
             T.legend["Item finder"],
-            T.input(type="text", name="item", id="item_to_find"),
             T.label(for_="item")["Name or barcode"],
+            T.input(type="text", name="item", id="item_to_find"),
             T.button(type='submit')["Find item"]]]
 
 def footer():
@@ -53,20 +53,28 @@ def get_style():
     with open("static/storage_manager.css") as instream:
         return instream.read()
 
-def get_json(item, path, params=None):
+def get_json(path, params=None):
     """Get JSON about an item from the API server."""
-    response = requests.get(f"{API}/{item}" + path,
+    response = requests.get(f"{API}{path}",
+                            params=params or {})
+    if response.status_code == 200:
+        return response.json()
+    raise requests.exceptions.HTTPError(f"Could not get {path}: {response.status_code}")
+
+def get_item_json(item, path, params=None):
+    """Get JSON about an item from the API server."""
+    response = requests.get(f"{API}/{item}{path}",
                             params=params or {})
     if response.status_code == 200:
         return response.json()
     raise requests.exceptions.HTTPError(f"Could not get {path} for {item}: {response.status_code}")
 
 def get_attribute(item, attribute, local_only=False, default=None):
-    return get_json(item,
-                    f"/attribute/{attribute}",
-                    params=({'local_only': True}
-                                if local_only
-                                else {})).get(attribute, default)
+    return get_item_json(item,
+                         f"/attribute/{attribute}",
+                         params=({'local_only': True}
+                                 if local_only
+                                 else {})).get(attribute, default)
 
 @app.route("/")
 def home_page():
@@ -113,14 +121,39 @@ def summarise_location(location):
         locs.append(summarise_one_location(loc))
     return locs
 
+def type_selector(kind='inventory'):
+    return [[T.option(value=typename)[typename]
+             for typename in sorted(requests.get(f"{API}/{kind}-types").json()['types'])]]
+
 def inventory_creator_form(item_name):
-    return T.div[T.p["inventory creator for ", item_name]]
+    return T.div[T.form(action="/new_inventory", method='POST')[
+        T.label(for_='item_name')["Item name:"],
+        T.input(type='text', name='item_name', value=item_name),
+        T.br,
+        T.label(for_='item_type')["Item type:"],
+        T.select(name='item_type', id='item_type')[type_selector()],
+        T.br,
+        T.button(type='submit')["Create inventory item"]]]
 
 def stock_creator_form(item_name):
-    return T.div[T.p["stock creator for ", item_name]]
+    return T.div[T.form(action="/new_stock_item", method='POST')[
+        T.label(for_='item_name')["Stock item name:"],
+        T.input(type='text', name='item_name', value=item_name),
+        T.br,
+        T.label(for_='item_type')["Item type:"],
+        T.select(name='item_type', id='item_type')[type_selector()],
+        T.br,
+        T.button(type='submit')["Create stock item type"]]]
 
 def type_creator_form(item_name):
-    return T.div[T.p["type creator for ", item_name]]
+    return T.div[T.form(action="/new_type", method='POST')[
+        T.label(for_='type_name')["Type name:"],
+        T.input(type='text', name='type_name', value=item_name),
+        T.br,
+        T.label(for_='parent_type')["Parent type:"],
+        T.select(name='parent_type', id='parent_type')[type_selector()],
+        T.br,
+        T.button(type='submit')["Create type"]]]
 
 @app.route("/<item>/new")
 def create_something_page(item):
@@ -141,33 +174,37 @@ def create_something_page(item):
                                                 },
                                                 order=['inventory', 'stock', 'type'],
                                                 buttons_side='top',
-                                                initial='inventory')
-                               # T.form(action=f"/{item}/new")[
-                               #     "Create a ",
-                               #     T.select(name='type', id='type')[
-                               #         T.option(value='inventory')["Inventory item"],
-                               #         T.option(value='stock')["Stock item"],
-                               #         T.option(value='type')["Type"],
-                               #     ],
-                               #     " called ",
-                               #     T.input(type_='text', value=item),
-                               #     T.input(type_='submit', value='Create')]
-                       ]))
+                                                initial='inventory')]))
+
+@app.route("/new_type", methods=['POST'])
+def new_type():
+    j = get_json("/new_type")
+    return titled_page("Creating type", T.p["Creating type with result ", str(j)])
+
+@app.route("/new_stock", methods=['POST'])
+def new_stock():
+    j = get_json("/new_stock")
+    return titled_page("Creating stock", T.p["Creating stock with result ", str(j)])
+
+@app.route("/new_inventory", methods=['POST'])
+def new_inventory():
+    j = get_json("/new_inventory")
+    return titled_page("Creating inventory", T.p["Creating inventory with result ", str(j)])
 
 @app.route("/<item>")
 def item_home(item=None):
     if item is None:
         item = request.args.get('item')
-    res = get_json(item, "")
+    res = get_item_json(item, "")
     if res['kind'] == 'unknown_new':
         # this is an API link, and I need to make it into a web server one
         return redirect(res['links']['new'].replace(API, WEB))
     if  res['kind'] == 'type':
         subtypes = [st
-                    for st in get_json(item, "/subtypes")
+                    for st in get_item_json(item, "/subtypes")
                     if st != item]
         parent_types = [pt
-                        for pt in get_json(item, "/parent_types")
+                        for pt in get_item_json(item, "/parent_types")
                         if pt != item]
         title = f"Type {item}"
         page = [T.div(class_='types')
@@ -182,13 +219,13 @@ def item_home(item=None):
                                                  T.ul[[T.li[T.a(href=subtype)[subtype]]
                                                      for subtype in subtypes]]])
         return titled_page(title, page)
-    details = get_json(item, "/details")
+    details = get_item_json(item, "/details")
     equipment_class = get_attribute(item, 'equipment class', default=None)
     types = details['types']
     item_name = res['name']
     item_type = res['type']
     links = res['links']
-    contents = get_json(item, "/contents")
+    contents = get_item_json(item, "/contents")
     inventory = contents['inventory']
     stock = contents['stock']
     location = details['nest']
@@ -218,7 +255,7 @@ def item_home(item=None):
                         T.input(type='submit', value='add'),
                     ]]
                 ]
-                for name, count in get_json(item, "/levels").items()
+                for name, count in get_item_json(item, "/levels").items()
             ]]
         ])
     page.append(T.div[T.h2["Types"],
@@ -247,7 +284,7 @@ def type_details(typename):
 
 @app.route("/<typename>/list")
 def type_list(typename):
-    things = get_json(typename, "/list_type")#['types']
+    things = get_item_json(typename, "/list_type")#['types']
     return titled_page("Type list",
                        T.div[T.p["List of " + typename],
                              T.ul[[

@@ -61,20 +61,11 @@ def get_json(path, params=None):
         return response.json()
     raise requests.exceptions.HTTPError(f"Could not get {path}: {response.status_code}")
 
-def get_item_json(item, path, params=None):
-    """Get JSON about an item from the API server."""
-    response = requests.get(f"{API}/{item}{path}",
-                            params=params or {})
-    if response.status_code == 200:
-        return response.json()
-    raise requests.exceptions.HTTPError(f"Could not get {path} for {item}: {response.status_code}")
-
 def get_attribute(item, attribute, local_only=False, default=None):
-    return get_item_json(item,
-                         f"/attribute/{attribute}",
-                         params=({'local_only': True}
-                                 if local_only
-                                 else {})).get(attribute, default)
+    return get_json(f"/attribute/{item}/{attribute}",
+                    params=({'local_only': True}
+                            if local_only
+                            else {})).get(attribute, default)
 
 @app.route("/")
 def home_page():
@@ -90,12 +81,12 @@ def home_page():
                 T.h2["Top-level locations"],
                 T.ul[[
                     T.li[T.a(href=f"/{site}")[site]]
-                    for site in requests.get(f"{API}/sites").json()['sites']]]],
+                    for site in get_json("/sites")['sites']]]],
             T.div[
                 T.h2["Top-level types"],
                 T.ul[[
                     T.li[T.a(href=tlt)[tlt]]
-                    for tlt in requests.get(f"{API}/top-level-types").json()['types']
+                    for tlt in get_json("/top-level-types")['types']
                     ]]]])
 
 @app.route("/item/<item>")
@@ -121,12 +112,12 @@ def summarise_location(location):
         locs.append(summarise_one_location(loc))
     return locs
 
-def type_selector(kind='inventory'):
+def type_selector(kind='inventory-'):
     return [[T.option(value=typename)[typename]
-             for typename in sorted(requests.get(f"{API}/{kind}-types").json()['types'])]]
+             for typename in sorted(get_json(f"/{kind}types")['types'])]]
 
 def inventory_creator_form(item_name):
-    return T.div[T.form(action="/new_inventory", method='POST')[
+    return T.div[T.form(action="/new_inventory", method='post')[
         T.label(for_='item_name')["Item name:"],
         T.input(type='text', name='item_name', value=item_name),
         T.br,
@@ -136,17 +127,17 @@ def inventory_creator_form(item_name):
         T.button(type='submit')["Create inventory item"]]]
 
 def stock_creator_form(item_name):
-    return T.div[T.form(action="/new_stock_item", method='POST')[
+    return T.div[T.form(action="/new_stock_item", method='post')[
         T.label(for_='item_name')["Stock item name:"],
         T.input(type='text', name='item_name', value=item_name),
         T.br,
         T.label(for_='item_type')["Item type:"],
-        T.select(name='item_type', id='item_type')[type_selector()],
+        T.select(name='item_type', id='item_type')[type_selector(kind='stock-')],
         T.br,
         T.button(type='submit')["Create stock item type"]]]
 
 def type_creator_form(item_name):
-    return T.div[T.form(action="/new_type", method='POST')[
+    return T.div[T.form(action="/new_type", method='post')[
         T.label(for_='type_name')["Type name:"],
         T.input(type='text', name='type_name', value=item_name),
         T.br,
@@ -155,7 +146,7 @@ def type_creator_form(item_name):
         T.br,
         T.button(type='submit')["Create type"]]]
 
-@app.route("/<item>/new")
+@app.route("/item/<item>/new")
 def create_something_page(item):
     return titled_page(f"Creating {item}",
                        T.div["Creating a specific kind of thing"]
@@ -176,56 +167,63 @@ def create_something_page(item):
                                                 buttons_side='top',
                                                 initial='inventory')]))
 
-@app.route("/new_type", methods=['POST'])
+@app.route("/new_type", methods=['post'])
 def new_type():
     j = get_json("/new_type")
     return titled_page("Creating type", T.p["Creating type with result ", str(j)])
 
-@app.route("/new_stock", methods=['POST'])
+@app.route("/new_stock", methods=['post'])
 def new_stock():
     j = get_json("/new_stock")
     return titled_page("Creating stock", T.p["Creating stock with result ", str(j)])
 
-@app.route("/new_inventory", methods=['POST'])
+@app.route("/new_inventory", methods=['post'])
 def new_inventory():
     j = get_json("/new_inventory")
     return titled_page("Creating inventory", T.p["Creating inventory with result ", str(j)])
+
+def get_subtypes(ty):
+    return [st for st in get_json(f"/subtypes/{ty}") if st != ty]
+
+def get_parent_types(ty):
+    return [pt for pt in get_json(f"/parent_types/{ty}") if pt != ty]
+
+def unnumbered_list(elements):
+    return T.ul[[T.li[T.a(href=elt)[elt]] for elt in elements]]
+
+def add_related_types(item, page):
+    if (parent_types := get_parent_types(item)):
+        page.append(T.div(class_='parent_types')[
+            T.h2["Parent types"],
+            unnumbered_list(parent_types)])
+    if (subtypes := get_subtypes(item)):
+        page.append(T.div(class_='subtypes')[
+            T.h2["Subtypes"],
+            unnumbered_list(subtypes)])
 
 @app.route("/<item>")
 def item_home(item=None):
     if item is None:
         item = request.args.get('item')
-    res = get_item_json(item, "")
+    res = get_json(f"/item/{item}")
     if res['kind'] == 'unknown_new':
         # this is an API link, and I need to make it into a web server one
         return redirect(res['links']['new'].replace(API, WEB))
+        # return titled_page("checking", T.p[res['links']['new'].replace(API, WEB)])
     if  res['kind'] == 'type':
-        subtypes = [st
-                    for st in get_item_json(item, "/subtypes")
-                    if st != item]
-        parent_types = [pt
-                        for pt in get_item_json(item, "/parent_types")
-                        if pt != item]
         title = f"Type {item}"
         page = [T.div(class_='types')
                 [T.h1[title]],
                 T.p[T.a(href=f"/{item}/list")[f"List objects of type {item}"]]]
-        if parent_types:
-            page.append(T.div(class_='parent_types')[T.h2["Parent types"],
-                                                     T.ul[[T.li[T.a(href=parent)[parent]]
-                                                     for parent in parent_types]]])
-        if subtypes:
-            page.append(T.div(class_='subtypes')[T.h2["Subtypes"],
-                                                 T.ul[[T.li[T.a(href=subtype)[subtype]]
-                                                     for subtype in subtypes]]])
+        add_related_types(item, page)
         return titled_page(title, page)
-    details = get_item_json(item, "/details")
+    details = get_json(f"/details/{item}")
     equipment_class = get_attribute(item, 'equipment class', default=None)
     types = details['types']
     item_name = res['name']
     item_type = res['type']
     links = res['links']
-    contents = get_item_json(item, "/contents")
+    contents = get_json(f"/contents/{item}")
     inventory = contents['inventory']
     stock = contents['stock']
     location = details['nest']
@@ -255,7 +253,7 @@ def item_home(item=None):
                         T.input(type='submit', value='add'),
                     ]]
                 ]
-                for name, count in get_item_json(item, "/levels").items()
+                for name, count in get_json(f"/levels/{item}").items()
             ]]
         ])
     page.append(T.div[T.h2["Types"],
@@ -277,14 +275,15 @@ def item_home(item=None):
 
 @app.route("/<typename>/type")
 def type_details(typename):
+    page = [T.p["Details of type ", typename]]
+    add_related_types(typename, page)
+    page.append(T.p[T.a(href=f"/{typename}/list")["List all things of type ", typename]])
     return titled_page("Type details",
-                       T.div[T.p["Details of " + typename],
-                             T.a(href=f"/{typename}/list")["List all things of type ", typename]
-                             ])
+                       T.div[page])
 
 @app.route("/<typename>/list")
 def type_list(typename):
-    things = get_item_json(typename, "/list_type")#['types']
+    things = get_json(f"/list_type/{typename}")#['types']
     return titled_page("Type list",
                        T.div[T.p["List of " + typename],
                              T.ul[[
@@ -301,7 +300,7 @@ def details(item):
 @app.route("/find")
 def find():
     """Find where an item is stored."""
-    res = requests.get(f"{API}/where/{request.args.get("name")}").json()
+    res = get_json(f"/where/{request.args.get("name")}")
     return titled_page("Search result",
                        T.p[res['item']['name'], " is ", res['location']])
 

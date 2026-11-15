@@ -51,7 +51,7 @@ def _ensure_database():
             raise ConnectionError("Could not connect to database")
     return _database_client[db_name]
 
-def types():
+def types_data():
     """Get the types collection from the database.
 
     Each row must define a 'name', and may define:
@@ -64,20 +64,20 @@ def types():
         _types.create_index('name', unique=True) # ignored if it already exists
     return _types
 
-def stock_types():
+def stock_types_data():
     """Get the stock types collection from the database.
 
     Each row must define a 'name', and may define:
     - parent (a parent type, except at the top level)
     - preposition (if this is a type of storage location)
     """
-    global _types
+    global _stock_types
     if _stock_types is None:
-        _stock_types = _ensure_database()['types']
+        _stock_types = _ensure_database()['stock-types']
         _stock_types.create_index('name', unique=True) # ignored if it already exists
     return _stock_types
 
-def inventory():
+def inventory_data():
     """Get the inventory collection from the database.
 
     Each row must define:
@@ -116,14 +116,14 @@ def stock():
 
 def name_to_id(name):
     """Return the barcode of the item with the given name."""
-    item = inventory().find_one({'name': name})
+    item = inventory_data().find_one({'name': name})
     if item is None:
         raise HTTPException(status_code=404, detail=f"Item {name} not found")
     return item['barcode']
 
 def id_to_name(barcode):
     """Return the name of an item with the given barcode."""
-    return inventory().find_one({'barcode': barcode})['name']
+    return inventory_data().find_one({'barcode': barcode})['name']
 
 def normalise_barcode(barcode):
     """Return a barcode as a string, based on the given input which
@@ -171,18 +171,18 @@ def lookup(name_or_barcode):
         return mark_kind((inventory if is_inventory(barcode) else stock)()
                          .find_one({'barcode': int(barcode)}),
                          'inventory')
-    if (item := inventory().find_one({'name': name_or_barcode})):
+    if (item := inventory_data().find_one({'name': name_or_barcode})):
         return mark_kind(item, 'inventory')
     if (item := stock().find_one({'name': name_or_barcode})):
         return mark_kind(item, 'stock')
-    if (item := types().find_one({'name': name_or_barcode})):
+    if (item := types_data().find_one({'name': name_or_barcode})):
         return mark_kind(item, 'type')
     return None
 
 def direct_contents(location_barcode):
     """Return a list of things that have the given barcode as their location."""
     return list(tidy_dictionary(d)
-                for d in inventory().find({'location': location_barcode}))
+                for d in inventory_data().find({'location': location_barcode}))
 
 def add_contents(entry):
     """Add to this entry a 'contents' list of the things that list it as their location.
@@ -205,7 +205,7 @@ def inventory_contents(location, recursive=False):
 
 def set_location(location_id, barcode):
     """Set the location of an item."""
-    inventory().update({'barcode': barcode}, {'location': location_id}, upsert=True)
+    inventory_data().update({'barcode': barcode}, {'location': location_id}, upsert=True)
 
 def by_name(collection):
     """Return a dictionary of a collection's contents, with the names as the keys."""
@@ -221,10 +221,10 @@ def fill_out_location(location_name):
     """Fill out an immediate location with its surrounding locations."""
     if location_name in (0, "0", "", None):
         return []
-    typedefs = by_name(types())
+    typedefs = by_name(types_data())
     result = []
     countdown = 8               # in case of looping types
-    inv = inventory()
+    inv = inventory_data()
     while (item := inv.find_one({'barcode': int(location_name)})):
         item['preposition'] = typedefs[item['type']]['preposition']
         location_name = item['location']
@@ -326,34 +326,34 @@ def dump_table(collection, left_keys):
 @storage_manager.post("/load-types")
 async def load_types(request: Request):
     """Load data into the database types from a CSV POST body."""
-    return load_table(types(),
+    return load_table(types_data(),
                       (await request.body()).decode("utf-8"))
 
 @storage_manager.get("/dump-types")
-async def dump_types():
+async def dump_types_data():
     """Return the database types as CSV text."""
-    return dump_table(types(), left_keys=['name', 'parent'])
+    return dump_table(types_data(), left_keys=['name', 'parent'])
 
 @storage_manager.post("/load-stock-types")
 async def load_stock_types(request: Request):
     """Load data into the stock database types from a CSV POST body."""
-    return load_table(types(),
+    return load_table(stock_types_data(),
                       (await request.body()).decode("utf-8"))
 
 @storage_manager.get("/dump-stock-types")
-async def dump_stock_types():
+async def dump_stock_types_data():
     """Return the stock database types as CSV text."""
-    return dump_table(types(), left_keys=['name', 'parent'])
+    return dump_table(stock_types_data(), left_keys=['name', 'parent'])
 
 @storage_manager.post("/load-inventory")
 async def load_inventory(request: Request):
     """Load data into the database inventory from a CSV POST body."""
-    return load_table(inventory(), (await request.body()).decode("utf-8"))
+    return load_table(inventory_data(), (await request.body()).decode("utf-8"))
 
 @storage_manager.get("/dump-inventory")
 async def dump_inventory():
     """Return the database inventory as CSV text."""
-    return dump_table(inventory(), left_keys=['barcode', 'name', 'type', 'location', 'square'])
+    return dump_table(inventory_data(), left_keys=['barcode', 'name', 'type', 'location', 'square'])
 
 @storage_manager.post("/load-stock")
 async def load_stock(request: Request):
@@ -373,23 +373,23 @@ async def root():
 @storage_manager.get("/sites")
 async def sites():
     """Return a list of top-level site names."""
-    return {'sites': [site['name'] for site in inventory().find({'location': 0})]}
+    return {'sites': [site['name'] for site in inventory_data().find({'location': 0})]}
 
 @storage_manager.get("/inventory-types")
 def inventory_types():
     """Return all the inventory types."""
-    return {'types': [t['name'] for t in types().find({})]}
+    return {'types': [t['name'] for t in types_data().find({})]}
 
 @storage_manager.get("/stock-types")
 def stock_types():
     """Return all the stock types."""
-    return {'types': [t['name'] for t in stock_types().find({})]}
+    return {'types': [t['type'] for t in stock_types_data().find({})]}
 
 @storage_manager.get("/top-level-types")
 def top_level_types():
     """Return the top-level types.
     This is the types that have no parent type."""
-    return {'types': [t['name'] for t in types().find({'parent': ""})]}
+    return {'types': [t['name'] for t in types_data().find({'parent': ""})]}
 
 VIRTUAL_BARCODE_ISSUE_BASE = 1000000
 
@@ -401,7 +401,7 @@ VIRTUAL_BARCODE_ISSUE_BASE = 1000000
 #     but if it is not given, one will be created for it.
 
 #     Further fields may be given in the request body."""
-#     inv = inventory()
+#     inv = inventory_data()
 #     if barcode:
 #         if inv.find_one({'barcode': barcode}):
 #             raise HTTPException(status_code=500, detail=f'Barcode {barcode} already in use')
@@ -417,8 +417,13 @@ VIRTUAL_BARCODE_ISSUE_BASE = 1000000
 #     return {'result': "not done"} # TODO
 
 @storage_manager.post("/new_inventory")
-def new_inventory_item():
-    print("in new_inventory_item")
+def new_inventory_post():
+    print("in new_inventory_item post")
+    return {'created': "inventory item"}
+
+@storage_manager.get("/new_inventory")
+def new_inventory_get():
+    print("in new_inventory_item get")
     return {'created': "inventory item"}
 
 def links_for_item(base_url: str, item: dict):
@@ -438,7 +443,7 @@ def links_for_item(base_url: str, item: dict):
         links['contains'] = f"{base_url}/contains"
     return links
 
-@storage_manager.get("/{item}")
+@storage_manager.get("/item/{item}")
 async def item_home(item, request: Request):
     """Return a 'home page' for the item.
     If the item does not exist, return a result to help create it."""
@@ -455,7 +460,7 @@ async def item_home(item, request: Request):
             else {'links': {'new': f"{request.url}/new"},
                   'kind': 'unknown_new'})
 
-@storage_manager.get("/{item}/where")
+@storage_manager.get("/where/{item}")
 async def where(item, full=False):
     """Return where an item is located.
     The item may be specified by name or by id (barcode)."""
@@ -478,11 +483,11 @@ def stock_contents(location):
     return [loc for loc in stock().find({
         f"locations.{str(lookup(location)['barcode'])}": {"$gt": 0}})]
 
-@storage_manager.get("/{location}/stocked")
+@storage_manager.get("/stocked/{location}")
 async def stocked(location):
     return stock_contents(location)
 
-@storage_manager.get("/{item}/levels")
+@storage_manager.get("/levels/{item}")
 def stock_levels(item):
     """Return the stock levels of an item."""
     locs = lookup(item)['locations']
@@ -492,12 +497,12 @@ def stock_levels(item):
         for k, v in locs.items()
     }
 
-@storage_manager.get("/{pattern}/what")
+@storage_manager.get("/what/{pattern}")
 async def what(pattern):
     """List everything with a name matching the given pattern."""
     return {'matching': pattern,
             'matches': [tidy_dictionary(x)
-                        for x in inventory().find({'name': {'$regex': pattern}})]}
+                        for x in inventory_data().find({'name': {'$regex': pattern}})]}
 
 def hierarchical_type(item):
     """Return hierarchical type for an item.
@@ -509,7 +514,7 @@ def hierarchical_type(item):
 
 def parent_type_list(ty):
     """Return the parent types of a type."""
-    typedefs = by_name(types())
+    typedefs = by_name(types_data())
     result = [ty]
     while True:
         ty = typedefs.get(ty, {}).get('parent', None)
@@ -526,7 +531,7 @@ def add_types(item):
 
 def subtypes_set(top):
     """Return the set of all the subtypes of a top type, hierarchically."""
-    typedefs = by_name(types())
+    typedefs = by_name(types_data())
     result = set([top])
     while True:
         how_many = len(result)
@@ -537,23 +542,23 @@ def subtypes_set(top):
             break
     return result
 
-@storage_manager.get("/{type_name}/subtypes")
+@storage_manager.get("/subtypes/{type_name}")
 async def subtypes(type_name):
     """Return the subtypes of a given type."""
     return list(subtypes_set(type_name))
 
-@storage_manager.get("/{type_name}/parent_types")
+@storage_manager.get("/parent_types/{type_name}")
 async def parent_types(type_name):
     """Return the parent types of a given type."""
     return parent_type_list(type_name)
 
-@storage_manager.get("/{type_name}/list_type")
+@storage_manager.get("/list_type/{type_name}")
 async def by_type(type_name):
     """List everything of a given type."""
     return [tidy_dictionary(add_types(x))
-            for x in inventory().find({'type': {'$in': list(subtypes_set(type_name))}})]
+            for x in inventory_data().find({'type': {'$in': list(subtypes_set(type_name))}})]
 
-@storage_manager.get("/{item}/details")
+@storage_manager.get("/details/{item}")
 def details(item):
     """Return the details of an item."""
     loc = full_location(item)
@@ -564,12 +569,12 @@ def details(item):
         'details': tidy_dictionary(lookup(item)),
     }
 
-@storage_manager.get("/{item}/attribute/{attr}")
+@storage_manager.get("/attribute/{item}/{attr}")
 def attribute(item, attr, local_only=None):
     """Return an attribute of an item.
     This may be defined by the item itself, or in its type hierarchy.
     The item may be specified by name or by barcode."""
-    typedefs = by_name(types())
+    typedefs = by_name(types_data())
     item_dict = lookup(item)
     if attr in item_dict and item_dict[attr]:
         return {attr: item_dict[attr]}
@@ -586,7 +591,7 @@ def attribute(item, attr, local_only=None):
                 break
     return {attr: None}
 
-@storage_manager.get("/{location}/contents")
+@storage_manager.get("/contents/{location}")
 async def list_contents(location, recursive:bool = False):
     """List everything stored in the given location."""
     return {'location': location,
@@ -626,7 +631,7 @@ async def store(item: str,
     """Mark that the item is stored in the given location."""
     barcode = lookup(item)['barcode']
     if is_inventory(barcode):
-        inv = inventory()
+        inv = inventory_data()
         if inv.find_one({'barcode': location}):
             inv.update_one({'barcode': barcode},
                            {'$set': {'location': location}},
@@ -644,5 +649,5 @@ async def delete_item(item: str):
     if deledendum is None:
         raise HTTPException(status_code=404, detail=f"Item {item} not found for deletion")
     barcode = deledendum['barcode']
-    inventory().delete_one({'barcode': barcode})
+    inventory_data().delete_one({'barcode': barcode})
     return {'deleted': barcode}

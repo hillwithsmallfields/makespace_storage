@@ -417,14 +417,14 @@ VIRTUAL_BARCODE_ISSUE_BASE = 1000000
 #     return {'result': "not done"} # TODO
 
 @storage_manager.post("/new_inventory")
-def new_inventory_post():
-    print("in new_inventory_item post")
-    return {'created': "inventory item"}
-
-@storage_manager.get("/new_inventory")
-def new_inventory_get():
-    print("in new_inventory_item get")
-    return {'created': "inventory item"}
+def new_inventory_post(
+        item_name, item_type,
+):
+    print("in new_inventory_item post with name", item_name, "and item type", item_type)
+    return {'created': "inventory item",
+            'item_name': item_name,
+            'item_type': item_type,
+            }
 
 def links_for_item(base_url: str, item: dict):
     """Return the API links for an item."""

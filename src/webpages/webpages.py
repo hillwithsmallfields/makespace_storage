@@ -54,12 +54,18 @@ def get_style():
         return instream.read()
 
 def get_json(path, params=None):
-    """Get JSON about an item from the API server."""
-    response = requests.get(f"{API}{path}",
-                            params=params or {})
+    """Get JSON from the API server."""
+    response = requests.get(f"{API}{path}", params=params or {})
     if response.status_code == 200:
         return response.json()
-    raise requests.exceptions.HTTPError(f"Could not get {path}: {response.status_code}")
+    raise requests.exceptions.HTTPError(f"Could not get {path}: {response.status_code} with params {params}")
+
+def post_json(path, params=None):
+    """Post JSON to the API server."""
+    response = requests.post(f"{API}{path}", params=params or {})
+    if response.status_code == 200:
+        return response.json()
+    raise requests.exceptions.HTTPError(f"Could not post {path}: {response.status_code} with params {params}")
 
 def get_attribute(item, attribute, local_only=False, default=None):
     return get_json(f"/attribute/{item}/{attribute}",
@@ -152,6 +158,8 @@ def create_something_page(item):
                        T.div["Creating a specific kind of thing"]
                        if 'type' in request.args
                        else (T.div[
+                               T.p['"', item, '" was not found in any of our collections.'],
+                               T.p["This is your chance to add it to the appropriate collection."],
                                switchable_panel(switcher_id='creator_switcher',
                                                 panels={
                                                     'inventory': inventory_creator_form(item),
@@ -165,21 +173,26 @@ def create_something_page(item):
                                                 },
                                                 order=['inventory', 'stock', 'type'],
                                                 buttons_side='top',
-                                                initial='inventory')]))
+                                                initial='inventory')]),
+                       body_params={'onload': "select_version('creator_switcher', 'inventory');"})
 
 @app.route("/new_type", methods=['post'])
 def new_type():
-    j = get_json("/new_type")
+    name = request.form.get('name')
+    item_type = request.form.get('item_type')
+    j = post_json("/new_type", params={'name': name, 'item_type': item_type})
     return titled_page("Creating type", T.p["Creating type with result ", str(j)])
 
 @app.route("/new_stock", methods=['post'])
 def new_stock():
-    j = get_json("/new_stock")
+    j = post_json("/new_stock")
     return titled_page("Creating stock", T.p["Creating stock with result ", str(j)])
 
 @app.route("/new_inventory", methods=['post'])
 def new_inventory():
-    j = get_json("/new_inventory")
+    item_name = request.form.get('item_name')
+    item_type = request.form.get('item_type')
+    j = post_json("/new_inventory", params={'item_name': item_name, 'item_type': item_type})
     return titled_page("Creating inventory", T.p["Creating inventory with result ", str(j)])
 
 def get_subtypes(ty):

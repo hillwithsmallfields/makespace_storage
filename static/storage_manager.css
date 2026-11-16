@@ -1,5 +1,11 @@
 <style>
 
+.finder_form {
+    position: Absolute;
+    top: 0px;
+    right: 0px;
+}
+
 .red_equipment{
     color: red;
 }
@@ -12,6 +18,10 @@
 
 div.types {
     background-color=#ffff80;
+}
+
+.stock_item {
+    background-color=green;
 }
 
 </style>

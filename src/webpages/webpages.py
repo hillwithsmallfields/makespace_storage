@@ -23,22 +23,34 @@ app = Flask("storage")
 # CORS(app, origins=["*"])
 
 def finder_form():
-    return T.form(action="/")[
+    return T.form(action="/", class_='finder_form')[
         T.fieldset[
             T.legend["Item finder"],
             T.label(for_="item")["Name or barcode"],
             T.input(type="text", name="item", id="item_to_find"),
             T.button(type='submit')["Find item"]]]
 
+def header():
+    return [
+        finder_form()
+    ]
+
 def footer():
     return [
         T.hr(),
-        T.a(href=WEB)["Assets home"],
+        T.p[
+            "[",
+            T.a(href=WEB)["Assets home"], "][",
+            T.a(href="https://web.makespace.org/")["Makespace"], "][",
+            T.a(href="https://sites.google.com/makespace.org/equipment/home")["Equipment"], "][",
+            T.a(href="https://web.makespace.org/training/")["Training"],
+            "]",
+        ],
         T.p["Generated at ", datetime.datetime.now().isoformat(timespec='seconds')]
     ]
 
 def titled_page(title, page, script="", body_params=None):
-    return str(exprpages.page_text(T.body(**(body_params or {}))[finder_form(),
+    return str(exprpages.page_text(T.body(**(body_params or {}))[header(),
                                                                  page,
                                                                  footer()],
                                    title=title,
@@ -86,12 +98,12 @@ def home_page():
             T.div[
                 T.h2["Top-level locations"],
                 T.ul[[
-                    T.li[T.a(href=f"/{site}")[site]]
+                    T.li[T.span(class_="location")[T.a(href=f"/{site}")[site]]]
                     for site in get_json("/sites")['sites']]]],
             T.div[
                 T.h2["Top-level types"],
                 T.ul[[
-                    T.li[T.a(href=tlt)[tlt]]
+                    T.li[T.span(class_="type")[T.a(href=tlt)[tlt.title()]]]
                     for tlt in get_json("/top-level-types")['types']
                     ]]]])
 
@@ -102,8 +114,9 @@ def item_item(item):
 
 def summarise_one_location(location):
     """Summarise a location."""
-    return [[T.span[f"{layer['preposition']} ",
-                    T.a(href=f"/{layer['name']}")[layer['name']]] for layer in location]]
+    return [[T.span(class_="loc_layer")[
+        f"{layer['preposition']} ",
+        T.a(href=f"/{layer['name']}")[layer['name']]] for layer in location]]
 
 def summarise_location(location):
     """Summarise a location or collection of locations."""
@@ -199,14 +212,15 @@ def get_subtypes(ty):
 def get_parent_types(ty):
     return [pt for pt in get_json(f"/parent_types/{ty}") if pt != ty]
 
-def unnumbered_list(elements):
-    return T.ul[[T.li[T.a(href=elt)[elt]] for elt in elements]]
+def unnumbered_list(elements, path_prefix=""):
+    return T.ul[[T.li[T.a(href=path_prefix+elt)[elt]] for elt in elements]]
 
 def add_related_types(item, page):
     if (parent_types := get_parent_types(item)):
+        print("parent types are", parent_types)
         page.append(T.div(class_='parent_types')[
             T.h2["Parent types"],
-            unnumbered_list(parent_types)])
+            unnumbered_list(parent_types, path_prefix="/")])
     if (subtypes := get_subtypes(item)):
         page.append(T.div(class_='subtypes')[
             T.h2["Subtypes"],
@@ -259,8 +273,9 @@ def item_home(item=None):
     if  res['kind'] == 'type':
         title = f"Type {item}"
         page = [T.div(class_='types')
-                [T.h1[title]],
-                T.p[T.a(href=f"/{item}/list")[f"List objects of type {item}"]]]
+                [T.h1[title],
+                 T.h2["Items of type ", item],
+                 list_for_type(item)]]
         add_related_types(item, page)
         return titled_page(title, page)
     details = get_json(f"/details/{item}")
@@ -289,7 +304,7 @@ def item_home(item=None):
         page.append(T.table[
             T.tr[T.th["Location"], T.th["Quantity"], T.th["Adjust by"]],
             [[T.tr[
-                T.th[name],
+                T.th(class_="stock_item")[name],
                 T.td[str(count)],
                 T.td[T.form(action="/update_stock", method='post')[
                     T.input(type='text', name='delta', value="1"),
@@ -303,39 +318,47 @@ def item_home(item=None):
                 ]]]
               for name, count in get_json(f"/levels/{item}").items()]]])
     page.append(T.div[T.h2["Types"],
-                      T.ul[[T.li[T.a(href=f"/{t}/type")[t]] for t in types]]])
+                      T.ul[[T.li[T.span(class_="type")[T.a(href=f"/{t}/type")[t]]] for t in types]]])
     if inventory:
         page.append(T.div[T.h2["Inventory contents"],
-                          T.ul[[T.li[T.a(href=f"/{dweller['name']}")[dweller['name']]]
+                          T.ul[[T.li[T.span(class_="inv_item")[T.a(href=f"/{dweller['name']}")[dweller['name']]]]
                                 for dweller in inventory]]])
     if stock:
         page.append(T.div[T.h2["Stock contents"],
-                          T.ul[[T.li[T.a(href=f"/{dweller['name']}")[dweller['name']]]
+                          T.ul[[T.li[T.span(class_="stock_item")[T.a(href=f"/{dweller['name']}")[dweller['name']]]]
                                 for dweller in stock]]])
     # TODO: show the types, with a link on each to get the details of the type, which will also have a link to list everything of that type
     # TODO: use the 'fits' attribute to construct where something can be moved to
-    page.append(T.div[T.h2["API links"],
-                      T.ul[[T.li[T.a(href=value)[key]]
-                             for key, value in links.items()]]])
+    # page.append(T.div[T.h2["API links"],
+    #                   T.ul[[T.li[T.a(href=value)[key]]
+    #                          for key, value in links.items()]]])
     return titled_page(title, page)
 
 @app.route("/<typename>/type")
 def type_details(typename):
-    page = [T.p["Details of type ", typename]]
+    page = [T.h1[f'Details of type "{typename}"']]
     add_related_types(typename, page)
-    page.append(T.p[T.a(href=f"/{typename}/list")["List all things of type ", typename]])
+    page.append([
+        T.h2["Items of type ", typename],
+        list_for_type(typename),
+    ])
     return titled_page("Type details",
                        T.div[page])
 
+def list_for_type(typename):
+    """Return the expressionive structure listing the things of the given typename."""
+    things = get_json(f"/list_type/{typename}")
+    return (T.ul[[T.li[T.a(href=f"/{thing['name']}")[thing['name']]]
+                  for thing in things]]
+            if things
+            else T.p["No items found."])
+
 @app.route("/<typename>/list")
 def type_list(typename):
-    things = get_json(f"/list_type/{typename}")#['types']
     return titled_page("Type list",
                        T.div[T.p["List of " + typename],
-                             T.ul[[
-                                 T.li[T.a(href=f"/{thing['name']}")[thing['name']]]
-                                 for thing in things
-                                 ]]
+                             list_for_type(typename)
+
                              ])
 
 @app.route("/<item>/details")

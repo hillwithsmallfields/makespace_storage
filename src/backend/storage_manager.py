@@ -100,7 +100,7 @@ def inventory_data():
         _inventory.create_index('barcode', unique=True) # ignored if it already exists
     return _inventory
 
-def stock():
+def stock_data():
     """Get the stock collection from the database.
 
     Each row must define:
@@ -173,7 +173,7 @@ def lookup(name_or_barcode):
                          'inventory')
     if (item := inventory_data().find_one({'name': name_or_barcode})):
         return mark_kind(item, 'inventory')
-    if (item := stock().find_one({'name': name_or_barcode})):
+    if (item := stock_data().find_one({'name': name_or_barcode})):
         return mark_kind(item, 'stock')
     if (item := types_data().find_one({'name': name_or_barcode})):
         return mark_kind(item, 'type')
@@ -358,12 +358,21 @@ async def dump_inventory():
 @storage_manager.post("/load-stock")
 async def load_stock(request: Request):
     """Load data into the database stock from a CSV POST body."""
-    return load_table(stock(), (await request.body()).decode("utf-8"), key='type')
+    return load_table(stock_data(), (await request.body()).decode("utf-8"), key='type')
 
 @storage_manager.get("/dump-stock")
 async def dump_stock():
     """Return the database stock as CSV text."""
-    return dump_table(stock(), left_keys=['name', 'quantity', 'location'])
+    return dump_table(stock_data(), left_keys=['name', 'quantity', 'location'])
+
+@storage_manager.get("/search")
+def search(pattern):
+    """Look for matches for a pattern."""
+    return {
+        'inventory': [tidy_dictionary(m) for m in inventory_data().find({'name': {'$regex': pattern}})],
+        'stock': [tidy_dictionary(m) for m in stock_data().find({'name': {'$regex': pattern}})],
+        'types': [tidy_dictionary(m) for m in types_data().find({'name': {'$regex': pattern}})],
+    }
 
 @storage_manager.get("/")
 async def root():
@@ -458,7 +467,7 @@ async def item_home(item, request: Request):
                    'links': links_for_item(request.url, item_dict)})
             if item_dict
             else {'links': {'new': f"{request.url}/new"},
-                  'kind': 'unknown_new'})
+                  'kind': 'unknown'})
 
 @storage_manager.get("/where/{item}")
 async def where(item, full=False):
@@ -480,7 +489,7 @@ async def where(item, full=False):
 
 def stock_contents(location):
     """Return what is stocked at this location."""
-    return [loc for loc in stock().find({
+    return [loc for loc in stock_data().find({
         f"locations.{str(lookup(location)['barcode'])}": {"$gt": 0}})]
 
 @storage_manager.get("/stocked/{location}")

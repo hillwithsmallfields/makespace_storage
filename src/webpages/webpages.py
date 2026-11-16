@@ -154,27 +154,25 @@ def type_creator_form(item_name):
 
 @app.route("/item/<item>/new")
 def create_something_page(item):
-    return titled_page(f"Creating {item}",
-                       T.div["Creating a specific kind of thing"]
-                       if 'type' in request.args
-                       else (T.div[
-                               T.p['"', item, '" was not found in any of our collections.'],
-                               T.p["This is your chance to add it to the appropriate collection."],
-                               switchable_panel(switcher_id='creator_switcher',
-                                                panels={
-                                                    'inventory': inventory_creator_form(item),
-                                                    'stock': stock_creator_form(item),
-                                                    'type': type_creator_form(item),
-                                                },
-                                                labels={
-                                                    'inventory': "Inventory item",
-                                                    'stock': "Stock item",
-                                                    'type': "Type",
-                                                },
-                                                order=['inventory', 'stock', 'type'],
-                                                buttons_side='top',
-                                                initial='inventory')]),
-                       body_params={'onload': "select_version('creator_switcher', 'inventory');"})
+    return titled_page(
+        "Create item",
+        T.div[
+            T.p['"', item, '" was not found in any of our collections.'],
+            T.p["This is your chance to add it to the appropriate collection."],
+            switchable_panel(switcher_id='creator_switcher',
+                             panels={
+                                 'inventory': inventory_creator_form(item),
+                                 'stock': stock_creator_form(item),
+                                 'type': type_creator_form(item),
+                             },
+                             labels={
+                                 'inventory': "Inventory item",
+                                 'stock': "Stock item",
+                                 'type': "Type",
+                             },
+                             order=['inventory', 'stock', 'type'],
+                             buttons_side='top',
+                             initial='inventory')])
 
 @app.route("/new_type", methods=['post'])
 def new_type():
@@ -214,14 +212,49 @@ def add_related_types(item, page):
             T.h2["Subtypes"],
             unnumbered_list(subtypes)])
 
+def search_results_or_create(item, item_fetch_result):
+    """Produce a page for when an item was not found.
+    List ambiguous results, or offer to create an item."""
+    search_results = get_json("/search", params={'pattern': item})
+    page = [
+        T.h1["No exact match"],
+        T.p[f'There was no exact match for "{item}".'],
+    ]
+    if any(search_results.values()):
+        page.append(
+            [
+                T.p["The following partial matches were found:"],
+                [[
+                    [T.h2[group.title()],
+                     T.ul[[
+                         T.li[T.a(href=f"/item/{pm['name']}")[pm['name']]]
+                         for pm in matches
+                     ]]]
+                    for group, matches in search_results.items()
+                    if matches
+                ]]])
+    page.append([
+        T.p[
+            "If none of those is what you meant, you can now ",
+            T.a(href=item_fetch_result['links']['new'].replace(API, WEB))[f"create {item}"],
+            "."]])
+
+    return titled_page(
+        f"Item {item} not found",
+        page)
+
 @app.route("/<item>")
 def item_home(item=None):
     if item is None:
         item = request.args.get('item')
     res = get_json(f"/item/{item}")
-    if res['kind'] == 'unknown_new':
+    if res['kind'] == 'unknown':
+
         # this is an API link, and I need to make it into a web server one
-        return redirect(res['links']['new'].replace(API, WEB))
+        # return redirect(res['links']['new'].replace(API, WEB))
+
+        return search_results_or_create(item, res)
+
         # return titled_page("checking", T.p[res['links']['new'].replace(API, WEB)])
     if  res['kind'] == 'type':
         title = f"Type {item}"

@@ -255,20 +255,20 @@ def item_home(item=None):
     if res['kind'] == 'stock':
         page.append(T.table[
             T.tr[T.th["Location"], T.th["Quantity"], T.th["Adjust by"]],
-            [[
-                T.tr[
-                    T.th[name],
-                    T.td[str(count)],
-                    T.td[T.form(action="/update_stock")[
-                        T.input(type='text', value="1"),
-                        T.input(type='submit', value='remove'),
-                        T.input(type='submit', value='set'),
-                        T.input(type='submit', value='add'),
-                    ]]
-                ]
-                for name, count in get_json(f"/levels/{item}").items()
-            ]]
-        ])
+            [[T.tr[
+                T.th[name],
+                T.td[str(count)],
+                T.td[T.form(action="/update_stock", method='post')[
+                    T.input(type='text', name='delta', value="1"),
+                    T.input(type='submit', name='action', value='-'),
+                    T.input(type='submit', name='action', value='='),
+                    T.input(type='submit', name='action', value='+'),
+                    T.input(type='hidden', name='referring_page', value=request.url),
+                    T.input(type='hidden', name='stock_item', value=item),
+                    T.input(type='hidden', name='location', value=name),
+                    T.input(type='hidden', name='existing', value=str(count)),
+                ]]]
+              for name, count in get_json(f"/levels/{item}").items()]]])
     page.append(T.div[T.h2["Types"],
                       T.ul[[T.li[T.a(href=f"/{t}/type")[t]] for t in types]]])
     if inventory:
@@ -322,6 +322,24 @@ def describe():
     """Describe an item."""
     return titled_page("Description",
                        T.p["Description will go here"])
+
+@app.route("/update_stock", methods=['post'])
+def update_stock():
+    referring_page = request.form.get('referring_page')
+    action = request.form.get('action')
+    delta = request.form.get('delta')
+    stock_item = request.form.get('stock_item')
+    location = request.form.get('location')
+    existing = request.form.get('existing')
+    post_json("/update_stock", params={
+        'action': action,
+        'delta': delta,
+        'stock_item': stock_item,
+        'location': location,
+        'existing': existing,
+        'referring_page': referring_page,
+    })
+    return redirect(referring_page)
 
 @app.route("/store")
 def store():

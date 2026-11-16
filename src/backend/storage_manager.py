@@ -168,7 +168,7 @@ def lookup(name_or_barcode):
         return name_or_barcode
     if is_barcode(name_or_barcode):
         barcode = normalise_barcode(name_or_barcode)
-        return mark_kind((inventory if is_inventory(barcode) else stock)()
+        return mark_kind((inventory_data if is_inventory(barcode) else stock_data)()
                          .find_one({'barcode': int(barcode)}),
                          'inventory')
     if (item := inventory_data().find_one({'name': name_or_barcode})):
@@ -393,34 +393,34 @@ def top_level_types():
 
 VIRTUAL_BARCODE_ISSUE_BASE = 1000000
 
-# @storage_manager.post("/{name}/new/{item_type}/{location}/{barcode}")
-# async def new_item(name: str, item_type: str, location: int, barcode: int, request: Request):
-#     """Create a new item.
-
-#     An item ID may be given (for example, from a barcode label you have stuck onto something)
-#     but if it is not given, one will be created for it.
-
-#     Further fields may be given in the request body."""
-#     inv = inventory_data()
-#     if barcode:
-#         if inv.find_one({'barcode': barcode}):
-#             raise HTTPException(status_code=500, detail=f'Barcode {barcode} already in use')
-#     else:
-#         barcode = 1 + max(VIRTUAL_BARCODE_ISSUE_BASE,
-#                           inv.find({}).sort({'barcode': -1}).limit(1).next()['barcode'])
-#     inv.insert_one({'barcode': barcode,
-#                     'name': name,
-#                     'type': item_type,
-#                     'location': location}
-#                    # further fields may be given in the request body
-#                    | await request.json())
-#     return {'result': "not done"} # TODO
-
 @storage_manager.post("/new_inventory")
 def new_inventory_post(
         item_name, item_type,
 ):
     print("in new_inventory_item post with name", item_name, "and item type", item_type)
+    # TODO: add the item to the database
+    return {'created': "inventory item",
+            'item_name': item_name,
+            'item_type': item_type,
+            }
+
+@storage_manager.post("/new_stock")
+def new_stock_post(
+        item_name, item_type,
+):
+    print("in new_stock_item post with name", item_name, "and item type", item_type)
+    # TODO: add the item to the database
+    return {'created': "inventory item",
+            'item_name': item_name,
+            'item_type': item_type,
+            }
+
+@storage_manager.post("/new_type")
+def new_type_post(
+        item_name, item_type,
+):
+    print("in new_type_item post with name", item_name, "and item type", item_type)
+    # TODO: add the item to the database
     return {'created': "inventory item",
             'item_name': item_name,
             'item_type': item_type,
@@ -496,6 +496,11 @@ def stock_levels(item):
         lookup('0' + k)['name']: v
         for k, v in locs.items()
     }
+
+@storage_manager.post("/update_stock")
+def update_stock(action, delta, stock_item, location, existing, referring_page):
+    print("in update_stock with action", action, "delta:", delta, "stock_item:", stock_item, "location:", location, "existing:", existing, "referring_page:", referring_page)
+    return {'placeholder': "will write"}
 
 @storage_manager.get("/what/{pattern}")
 async def what(pattern):

@@ -605,27 +605,38 @@ def details(item):
         'details': tidy_dictionary(lookup(item)),
     }
 
-@storage_manager.get("/attribute/{item}/{attr}")
-def attribute(item, attr, local_only=None):
+def attribute_value(item, attr, local_only=None):
     """Return an attribute of an item.
     This may be defined by the item itself, or in its type hierarchy.
     The item may be specified by name or by barcode."""
     typedefs = by_name(types_data())
     item_dict = lookup(item)
     if attr in item_dict and item_dict[attr]:
-        return {attr: item_dict[attr]}
+        return item_dict[attr]
     if local_only:
-        return {attr: None}
+        return None
     if item_dict['type'] in typedefs:
         item_type = typedefs[item_dict['type']]['name']
         while True:
             if item_type not in typedefs:
-                return {attr: None}
+                return None
             if (value := typedefs[item_type][attr]):
-                return {attr: value}
+                return value
             if not (item_type := typedefs[item_type]['parent']):
                 break
-    return {attr: None}
+    return None
+
+@storage_manager.get("/attribute/{item}/{attr}")
+def attribute(item, attr, local_only=None):
+    """FastAPI wrapper for `attribute_value`."""
+    return {attr: attribute_value(item, attr, local_only)}
+
+@storage_manager.get("/attributes/{item}/{attrs}")
+def attributes(item, attr, local_only=None):
+    """FastAPI wrapper for `attribute_value`."""
+    return {attr: value
+            for attr in attrs.split(';')
+            if ((value := attribute_value(item, attr, local_only)) is not None)}
 
 @storage_manager.get("/contents/{location}")
 async def list_contents(location, recursive:bool = False):

@@ -4,6 +4,7 @@
 
 import datetime
 import json
+import re
 import requests
 
 from flask import Flask, request, redirect
@@ -131,9 +132,15 @@ def summarise_location(location):
         locs.append(summarise_one_location(loc))
     return locs
 
-def extra_form_fields(fieldnames):
-    # TODO: make a list of field entry rows
-    return []
+def extra_form_fields(fieldnames, valuesdict):
+    return [T.table[[
+        T.tr[
+            T.td(class_='form_table_label')[name.replace('_', ' ')],
+            T.td[T.input(type='text', id=name, value=valuesdict.get(name, ""))]
+        ]
+        for name in fieldnames
+    ]
+    ]]
 
 def extra_display_fields(item_dict, fieldnames):
     # TODO: make a list of field display rows
@@ -144,7 +151,8 @@ def type_selector(kind='inventory-'):
     return [[T.option(value=typename)[typename]
              for typename in sorted(get_json(f"/{kind}types")['types'])]]
 
-def inventory_creator_form(item_name="", barcode=0, extra_fields=None):
+def inventory_create_or_edit_form(item_name="", barcode=0, get_existing=True):
+    extra_fields = get_json("/suggested_fields")['inventory']
     return T.div[T.form(action="/new_inventory", method='post')[
         T.label(for_='barcode')["Barcode:"],
         T.input(type='text', name='barcode', value=str(barcode)),
@@ -155,10 +163,13 @@ def inventory_creator_form(item_name="", barcode=0, extra_fields=None):
         T.label(for_='item_type')["Item type:"],
         T.select(name='item_type', id='item_type')[type_selector()],
         T.br,
-        extra_form_fields(get_json("/suggested_fields")['inventory'])
+        extra_form_fields(extra_fields,
+                          (get_json(f"/attributes/{item_name}/{';'.join(extra_fields)}")
+                           if get_existing
+                           else {})),
         T.button(type='submit')["Create inventory item"]]]
 
-def stock_creator_form(item_name="", barcode=0, extra_fields=None):
+def stock_create_or_edit_form(item_name="", barcode=0, get_existing=True):
     return T.div[T.form(action="/new_stock_item", method='post')[
         T.label(for_='barcode')["Barcode:"],
         T.input(type='text', name='barcode', value=str(barcode)),
@@ -169,10 +180,13 @@ def stock_creator_form(item_name="", barcode=0, extra_fields=None):
         T.label(for_='item_type')["Item type:"],
         T.select(name='item_type', id='item_type')[type_selector(kind='stock-')],
         T.br,
-        extra_form_fields(get_json("/suggested_fields")['stock'])
+        extra_form_fields(get_json("/suggested_fields")['stock'],
+                          (get_json(f"/attributes/{item_name}/{';'.join(extra_fields)}")
+                           if get_existing
+                           else {})),
         T.button(type='submit')["Create stock item type"]]]
 
-def type_creator_form(item_name):
+def type_create_or_edit_form(item_name, get_existing=True):
     return T.div[T.form(action="/new_type", method='post')[
         T.label(for_='type_name')["Type name:"],
         T.input(type='text', name='type_name', value=item_name),
@@ -195,9 +209,9 @@ def create_something_page(item):
             T.p["This is your chance to add it to the appropriate collection."],
             switchable_panel(switcher_id='creator_switcher',
                              panels={
-                                 'inventory': inventory_creator_form(item, barcode),
-                                 'stock': stock_creator_form(item, barcode),
-                                 'type': type_creator_form(item),
+                                 'inventory': inventory_create_or_edit_form(item, barcode, False),
+                                 'stock': stock_create_or_edit_form(item, barcode, False),
+                                 'type': type_create_or_edit_form(item, False),
                              },
                              labels={
                                  'inventory': "Inventory item",

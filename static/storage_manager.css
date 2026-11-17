@@ -24,8 +24,12 @@ div.types {
     background-color=green;
 }
 
-td.form_table_label {
+td.attr_table_label {
     text-align: end;
+}
+
+td.attr_table_value {
+    text-align: start;
 }
 
 </style>

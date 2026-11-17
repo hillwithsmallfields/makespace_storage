@@ -133,19 +133,22 @@ def summarise_location(location):
     return locs
 
 def extra_form_fields(fieldnames, valuesdict):
-    return [T.table[[
-        T.tr[
-            T.td(class_='form_table_label')[name.replace('_', ' ')],
-            T.td[T.input(type='text', id=name, value=valuesdict.get(name, ""))]
-        ]
-        for name in fieldnames
-    ]
-    ]]
+    """Return a table of form fields for setting details of an item."""
+    return [T.table[[T.tr[T.td(class_='attr_table_label')[name.replace('_', ' ')],
+                          T.td[T.input(type='text', id=name, value=valuesdict.get(name, ""))]]
+                     for name in fieldnames]]]
 
-def extra_display_fields(item_dict, fieldnames):
-    # TODO: make a list of field display rows
+def extra_display_fields(fieldnames, item_dict):
+    """Return a table of attribute names and values."""
     # TODO: call this where needed
-    return []
+    return [T.table[[T.tr[T.td(class_='attr_table_label')[name.replace('_', ' ')],
+                          T.td(class_='attr_table_value')[
+                              T.a(href=item_dict.get(name+"_URL"))[value]
+                              if name+"_URL" in item_dict
+                              else value]]
+                     for name in fieldnames
+                     if ((not name.endswith("_URL"))
+                         and (value := item_dict.get(name)) is not None)]]]
 
 def type_selector(kind='inventory-'):
     return [[T.option(value=typename)[typename]
@@ -352,6 +355,9 @@ def item_home(item=None):
                     T.input(type='hidden', name='existing', value=str(count)),
                 ]]]
               for name, count in get_json(f"/levels/{item}").items()]]])
+    extra_fields = get_json("/suggested_fields")['inventory']
+    page.append(T.div[T.h2["Further details"],
+                      extra_display_fields(extra_fields, get_json(f"/attributes/{item_name}/{';'.join(extra_fields)}"))])
     page.append(T.div[T.h2["Types"],
                       T.ul[[T.li[T.span(class_="type")[T.a(href=f"/{t}/type")[t]]] for t in types]]])
     if inventory:

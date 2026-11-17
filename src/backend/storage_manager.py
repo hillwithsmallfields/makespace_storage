@@ -620,23 +620,27 @@ def attribute_value(item, attr, local_only=None):
         while True:
             if item_type not in typedefs:
                 return None
-            if (value := typedefs[item_type][attr]):
+            if (value := typedefs[item_type].get(attr)):
                 return value
             if not (item_type := typedefs[item_type]['parent']):
                 break
     return None
 
 @storage_manager.get("/attribute/{item}/{attr}")
-def attribute(item, attr, local_only=None):
+def attribute(item, attr):
     """FastAPI wrapper for `attribute_value`."""
-    return {attr: attribute_value(item, attr, local_only)}
+    return {attr: attribute_value(item, attr)}
 
 @storage_manager.get("/attributes/{item}/{attrs}")
-def attributes(item, attr, local_only=None):
+def attributes(item, attrs):
     """FastAPI wrapper for `attribute_value`."""
-    return {attr: value
-            for attr in attrs.split(';')
-            if ((value := attribute_value(item, attr, local_only)) is not None)}
+    print("getting attributes for", item)
+    print("attributes to get: ", attrs.split(';'))
+    result = {attr: value
+              for attr in attrs.split(';')
+              if ((value := attribute_value(item, attr)) is not None)}
+    print("result is", result)
+    return result
 
 @storage_manager.get("/contents/{location}")
 async def list_contents(location, recursive:bool = False):

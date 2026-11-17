@@ -135,12 +135,11 @@ def summarise_location(location):
 def extra_form_fields(fieldnames, valuesdict):
     """Return a table of form fields for setting details of an item."""
     return [T.table[[T.tr[T.td(class_='attr_table_label')[name.replace('_', ' ')],
-                          T.td[T.input(type='text', id=name, value=valuesdict.get(name, ""))]]
+                          T.td[T.input(type='text', name=name, value=valuesdict.get(name, ""))]]
                      for name in fieldnames]]]
 
 def extra_display_fields(fieldnames, item_dict):
     """Return a table of attribute names and values."""
-    # TODO: call this where needed
     return [T.table[[T.tr[T.td(class_='attr_table_label')[name.replace('_', ' ')],
                           T.td(class_='attr_table_value')[
                               T.a(href=item_dict.get(name+"_URL"))[value]
@@ -295,8 +294,61 @@ def search_results_or_create(item, item_fetch_result):
         f"Item {item} not found",
         page)
 
+@app.route("/find")
+def find():
+    """Find where an item is stored."""
+    res = get_json(f"/where/{request.args.get("name")}")
+    return titled_page("Search result",
+                       T.p[res['item']['name'], " is ", res['location']])
+
+@app.route("/describe")
+def describe():
+    """Describe an item."""
+    return titled_page("Description",
+                       T.p["Description will go here"])
+
+@app.route("/update_inventory_item", methods=['post'])
+def update():
+    referring_page = request.form.get('referring_page')
+    post_json("/update_inventory_item", params={
+        k: v
+        for k, v in request.form.items()
+        if k not in ['referring_page']})
+    return redirect(referring_page)
+
+@app.route("/update_stock", methods=['post'])
+def update_stock():
+    referring_page = request.form.get('referring_page')
+    action = request.form.get('action')
+    delta = request.form.get('delta')
+    stock_item = request.form.get('stock_item')
+    location = request.form.get('location')
+    existing = request.form.get('existing')
+    post_json("/update_stock", params={
+        'action': action,
+        'delta': delta,
+        'stock_item': stock_item,
+        'location': location,
+        'existing': existing,
+        'referring_page': referring_page,
+    })
+    return redirect(referring_page)
+
+@app.route("/store")
+def store():
+    """Indicate where an item is stored."""
+    return titled_page("Storage confirmation",
+                       T.p["Storage confirmation will go here"])
+
+@app.route("/consume")
+def consume():
+    """Indicate that a stock item has been used up."""
+    return titled_page("Item consumed",
+                       T.p["Consumption record will go here"])
+
 @app.route("/<item>")
 def item_home(item=None):
+    """Display the home page for an item."""
     if item is None:
         item = request.args.get('item')
     res = get_json(f"/item/{item}")
@@ -356,8 +408,21 @@ def item_home(item=None):
                 ]]]
               for name, count in get_json(f"/levels/{item}").items()]]])
     extra_fields = get_json("/suggested_fields")['inventory']
+    extra_values = get_json(f"/attributes/{item_name}/{';'.join(extra_fields)}")
     page.append(T.div[T.h2["Further details"],
-                      extra_display_fields(extra_fields, get_json(f"/attributes/{item_name}/{';'.join(extra_fields)}"))])
+                      switchable_panel(switcher_id='display_or_edit_switcher',
+                                       panels={'display': extra_display_fields(extra_fields, extra_values),
+                                               'edit': T.form(action=f"/update_inventory_item", method='post')[
+                                                   extra_form_fields(extra_fields, extra_values),
+                                                   T.input(type='hidden', name='item_name', value=item_name),
+                                                   T.input(type='hidden', name='referring_page', value=request.url),
+                                                   T.input(type='submit', value="Update", method='post')
+                                               ]},
+                                       labels={'display': "Display",
+                                               'edit': "Edit"},
+                                       order=['display', 'edit'],
+                                       buttons_side='bottom',
+                                       initial='display')])
     page.append(T.div[T.h2["Types"],
                       T.ul[[T.li[T.span(class_="type")[T.a(href=f"/{t}/type")[t]]] for t in types]]])
     if inventory:
@@ -406,49 +471,6 @@ def type_list(typename):
 def details(item):
     return titled_page("Details",
                        T.div["details of ", item, " will go here."])
-
-@app.route("/find")
-def find():
-    """Find where an item is stored."""
-    res = get_json(f"/where/{request.args.get("name")}")
-    return titled_page("Search result",
-                       T.p[res['item']['name'], " is ", res['location']])
-
-@app.route("/describe")
-def describe():
-    """Describe an item."""
-    return titled_page("Description",
-                       T.p["Description will go here"])
-
-@app.route("/update_stock", methods=['post'])
-def update_stock():
-    referring_page = request.form.get('referring_page')
-    action = request.form.get('action')
-    delta = request.form.get('delta')
-    stock_item = request.form.get('stock_item')
-    location = request.form.get('location')
-    existing = request.form.get('existing')
-    post_json("/update_stock", params={
-        'action': action,
-        'delta': delta,
-        'stock_item': stock_item,
-        'location': location,
-        'existing': existing,
-        'referring_page': referring_page,
-    })
-    return redirect(referring_page)
-
-@app.route("/store")
-def store():
-    """Indicate where an item is stored."""
-    return titled_page("Storage confirmation",
-                       T.p["Storage confirmation will go here"])
-
-@app.route("/consume")
-def consume():
-    """Indicate that a stock item has been used up."""
-    return titled_page("Item consumed",
-                       T.p["Consumption record will go here"])
 
 if __name__ == "__main__":
     app.run(debug=True)

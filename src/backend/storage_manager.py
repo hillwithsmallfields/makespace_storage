@@ -598,12 +598,10 @@ async def by_type(type_name):
 def details(item):
     """Return the details of an item."""
     loc = full_location(item)
-    return {
-        'types': hierarchical_type(item),
-        'nest': loc,
-        'location': location_string(loc),
-        'details': tidy_dictionary(lookup(item)),
-    }
+    return {'types': hierarchical_type(item),
+            'nest': loc,
+            'location': location_string(loc),
+            'details': tidy_dictionary(lookup(item))}
 
 def attribute_value(item, attr, local_only=None):
     """Return an attribute of an item.
@@ -642,6 +640,19 @@ def attributes(item, attrs):
     print("result is", result)
     return result
 
+@storage_manager.post("/update_inventory_item")
+async def update_item(request: Request):
+    print("in update POST")
+    inv = inventory_data()
+    item_name = request.query_params['item_name']
+    for k, v in request.query_params.items():
+        print("updating", item_name, "key", k, "to", v)
+        # TODO: handle numeric values --- do I need to convert them myself?
+        inv.update_one({'name': item_name}, # TODO: identify it by barcode rather than name
+                       {'$set': {k, v}},
+                       upsert=True)
+    return {'updated': item_name}
+
 @storage_manager.get("/contents/{location}")
 async def list_contents(location, recursive:bool = False):
     """List everything stored in the given location."""
@@ -675,7 +686,7 @@ def is_stock(barcode):
     """Return whether a barcode is a stock barcode."""
     return not is_inventory(barcode)
 
-@storage_manager.post("/{item}/move/{location}")
+@storage_manager.post("/move/{item}/{location}")
 async def store(item: str,
                 location: int,
                 quantity: int):
@@ -693,7 +704,7 @@ async def store(item: str,
     else:
         pass                    # TODO store stock separately, using quantity
 
-@storage_manager.post("/{item}/delete")
+@storage_manager.post("/delete/{item}")
 async def delete_item(item: str):
     """Delete an item, specified by name or barcode."""
     deledendum = lookup(item)

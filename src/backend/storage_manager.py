@@ -30,6 +30,21 @@ storage_manager.add_middleware(
     allow_headers=["*"],
 )
 
+INVENTORY_FIELDS = [
+    "Manufacturer", "Manufacturer_URL",
+    "Supplier", "Supplier_URL",
+    "Date_acquired", "Date_disposed",
+    "PAT tested",
+    "Picture",
+    "Training_page",
+    "Owners_email",
+]
+STOCK_FIELDS = [
+    "Supplier", "Supplier_URL",
+    "Minimum_stock",
+    "Order_size",
+]
+
 _database_client = None
 _types = None
 _stock_types = None
@@ -399,6 +414,13 @@ def top_level_types():
     """Return the top-level types.
     This is the types that have no parent type."""
     return {'types': [t['name'] for t in types_data().find({'parent': ""})]}
+
+@storage_manager.get("/suggested_fields")
+def suggested_fields():
+    return {
+        'inventory': INVENTORY_FIELDS,
+        'stock': STOCK_FIELDS,
+    }
 
 VIRTUAL_BARCODE_ISSUE_BASE = 1000000
 

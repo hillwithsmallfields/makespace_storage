@@ -131,28 +131,45 @@ def summarise_location(location):
         locs.append(summarise_one_location(loc))
     return locs
 
+def extra_form_fields(fieldnames):
+    # TODO: make a list of field entry rows
+    return []
+
+def extra_display_fields(item_dict, fieldnames):
+    # TODO: make a list of field display rows
+    # TODO: call this where needed
+    return []
+
 def type_selector(kind='inventory-'):
     return [[T.option(value=typename)[typename]
              for typename in sorted(get_json(f"/{kind}types")['types'])]]
 
-def inventory_creator_form(item_name):
+def inventory_creator_form(item_name="", barcode=0, extra_fields=None):
     return T.div[T.form(action="/new_inventory", method='post')[
+        T.label(for_='barcode')["Barcode:"],
+        T.input(type='text', name='barcode', value=str(barcode)),
+        T.br,
         T.label(for_='item_name')["Item name:"],
         T.input(type='text', name='item_name', value=item_name),
         T.br,
         T.label(for_='item_type')["Item type:"],
         T.select(name='item_type', id='item_type')[type_selector()],
         T.br,
+        extra_form_fields(get_json("/suggested_fields")['inventory'])
         T.button(type='submit')["Create inventory item"]]]
 
-def stock_creator_form(item_name):
+def stock_creator_form(item_name="", barcode=0, extra_fields=None):
     return T.div[T.form(action="/new_stock_item", method='post')[
+        T.label(for_='barcode')["Barcode:"],
+        T.input(type='text', name='barcode', value=str(barcode)),
+        T.br,
         T.label(for_='item_name')["Stock item name:"],
         T.input(type='text', name='item_name', value=item_name),
         T.br,
         T.label(for_='item_type')["Item type:"],
         T.select(name='item_type', id='item_type')[type_selector(kind='stock-')],
         T.br,
+        extra_form_fields(get_json("/suggested_fields")['stock'])
         T.button(type='submit')["Create stock item type"]]]
 
 def type_creator_form(item_name):
@@ -167,6 +184,10 @@ def type_creator_form(item_name):
 
 @app.route("/item/<item>/new")
 def create_something_page(item):
+    numeric = re.match("^[0-9]+$", item)
+    barcode = int(item) if numeric else None
+    if numeric:
+        item = ""
     return titled_page(
         "Create item",
         T.div[
@@ -174,8 +195,8 @@ def create_something_page(item):
             T.p["This is your chance to add it to the appropriate collection."],
             switchable_panel(switcher_id='creator_switcher',
                              panels={
-                                 'inventory': inventory_creator_form(item),
-                                 'stock': stock_creator_form(item),
+                                 'inventory': inventory_creator_form(item, barcode),
+                                 'stock': stock_creator_form(item, barcode),
                                  'type': type_creator_form(item),
                              },
                              labels={

@@ -32,23 +32,15 @@ def finder_form():
             T.button(type='submit')["Find item"]]]
 
 def header():
-    return [
-        finder_form()
-    ]
+    return [finder_form()]
 
 def footer():
-    return [
-        T.hr(),
-        T.p[
-            "[",
-            T.a(href=WEB)["Assets home"], "][",
-            T.a(href="https://web.makespace.org/")["Makespace"], "][",
-            T.a(href="https://sites.google.com/makespace.org/equipment/home")["Equipment"], "][",
-            T.a(href="https://web.makespace.org/training/")["Training"],
-            "]",
-        ],
-        T.p["Generated at ", datetime.datetime.now().isoformat(timespec='seconds')]
-    ]
+    return [T.hr(),
+            T.p["[", T.a(href=WEB)["Assets home"], "][",
+                T.a(href="https://web.makespace.org/")["Makespace"], "][",
+                T.a(href="https://sites.google.com/makespace.org/equipment/home")["Equipment"], "][",
+                T.a(href="https://web.makespace.org/training/")["Training"], "]"],
+            T.p["Generated at ", datetime.datetime.now().isoformat(timespec='seconds')]]
 
 def titled_page(title, page, script="", body_params=None):
     return str(exprpages.page_text(T.body(**(body_params or {}))[header(),
@@ -94,19 +86,13 @@ def home_page():
         return item_home(search_item)
     return titled_page(
         "Makespace asset tracker",
-        T.div[
-            T.h1["Makespace asset tracker home page"],
-            T.div[
-                T.h2["Top-level locations"],
-                T.ul[[
-                    T.li[T.span(class_="location")[T.a(href=f"/{site}")[site]]]
-                    for site in get_json("/sites")['sites']]]],
-            T.div[
-                T.h2["Top-level types"],
-                T.ul[[
-                    T.li[T.span(class_="type")[T.a(href=tlt)[tlt.title()]]]
-                    for tlt in get_json("/top-level-types")['types']
-                    ]]]])
+        T.div[T.h1["Makespace asset tracker home page"],
+              T.div[T.h2["Top-level locations"],
+                    T.ul[[T.li[T.span(class_="location")[T.a(href=f"/{site}")[site]]]
+                          for site in get_json("/sites")['sites']]]],
+              T.div[T.h2["Top-level types"],
+                    T.ul[[T.li[T.span(class_="type")[T.a(href=tlt)[tlt.title()]]]
+                          for tlt in get_json("/top-level-types")['types']]]]])
 
 @app.route("/item/<item>")
 def item_item(item):
@@ -117,7 +103,8 @@ def summarise_one_location(location):
     """Summarise a location."""
     return [[T.span(class_="loc_layer")[
         f"{layer['preposition']} ",
-        T.a(href=f"/{layer['name']}")[layer['name']]] for layer in location]]
+        T.a(href=f"/{layer['name']}")[layer['name']]]
+             for layer in location]]
 
 def summarise_location(location):
     """Summarise a location or collection of locations."""
@@ -225,23 +212,18 @@ def create_something_page(item):
         item = ""
     return titled_page(
         "Create item",
-        T.div[
-            T.p['"', item, '" was not found in any of our collections.'],
-            T.p["This is your chance to add it to the appropriate collection."],
-            switchable_panel(switcher_id='creator_switcher',
-                             panels={
-                                 'inventory': inventory_create_or_edit_form(item, barcode, False),
-                                 'stock': stock_create_or_edit_form(item, barcode, False),
-                                 'type': type_create_or_edit_form(item, False),
-                             },
-                             labels={
-                                 'inventory': "Inventory item",
-                                 'stock': "Stock item",
-                                 'type': "Type",
-                             },
-                             order=['inventory', 'stock', 'type'],
-                             buttons_side='top',
-                             initial='inventory')])
+        T.div[T.p['"', item, '" was not found in any of our collections.'],
+              T.p["This is your chance to add it to the appropriate collection."],
+              switchable_panel(switcher_id='creator_switcher',
+                               panels={'inventory': inventory_create_or_edit_form(item, barcode, False),
+                                       'stock': stock_create_or_edit_form(item, barcode, False),
+                                       'type': type_create_or_edit_form(item, False)},
+                               labels={'inventory': "Inventory item",
+                                       'stock': "Stock item",
+                                       'type': "Type"},
+                               order=['inventory', 'stock', 'type'],
+                               buttons_side='top',
+                               initial='inventory')])
 
 @app.route("/new_type", methods=['post'])
 def new_type():
@@ -286,32 +268,20 @@ def search_results_or_create(item, item_fetch_result):
     """Produce a page for when an item was not found.
     List ambiguous results, or offer to create an item."""
     search_results = get_json("/search", params={'pattern': item})
-    page = [
-        T.h1["No exact match"],
-        T.p[f'There was no exact match for "{item}".'],
-    ]
+    page = [T.h1["No exact match"],
+            T.p[f'There was no exact match for "{item}".']]
     if any(search_results.values()):
-        page.append(
-            [
-                T.p["The following partial matches were found:"],
-                [[
-                    [T.h2[group.title()],
-                     T.ul[[
-                         T.li[T.a(href=f"/item/{pm['name']}")[pm['name']]]
-                         for pm in matches
-                     ]]]
-                    for group, matches in search_results.items()
-                    if matches
-                ]]])
-    page.append([
-        T.p[
-            "If none of those is what you meant, you can now ",
-            T.a(href=item_fetch_result['links']['new'].replace(API, WEB))[f"create {item}"],
-            "."]])
+        page.append([T.p["The following partial matches were found:"],
+                     [[[T.h2[group.title()],
+                        T.ul[[T.li[T.a(href=f"/item/{pm['name']}")[pm['name']]]
+                              for pm in matches]]]
+                       for group, matches in search_results.items()
+                       if matches]]])
+    page.append([T.p["If none of those is what you meant, you can now ",
+                     T.a(href=item_fetch_result['links']['new'].replace(API, WEB))[f"create {item}"],
+                     "."]])
 
-    return titled_page(
-        f"Item {item} not found",
-        page)
+    return titled_page(f"Item {item} not found", page)
 
 @app.route("/find")
 def find():
@@ -365,6 +335,48 @@ def consume():
     return titled_page("Item consumed",
                        T.p["Consumption record will go here"])
 
+def add_stock_table(page, item):
+    page.append(T.table[
+        T.tr[T.th["Location"], T.th["Quantity"], T.th["Adjust by"]],
+        [[T.tr[
+            T.th(class_="stock_item")[name],
+            T.td[str(count)],
+            T.td[T.form(action="/update_stock", method='post')[
+                T.input(type='text', name='delta', value="1"),
+                T.input(type='submit', name='action', value='-'),
+                T.input(type='submit', name='action', value='='),
+                T.input(type='submit', name='action', value='+'),
+                T.input(type='hidden', name='referring_page', value=request.url),
+                T.input(type='hidden', name='stock_item', value=item),
+                T.input(type='hidden', name='location', value=name),
+                T.input(type='hidden', name='existing', value=str(count)),
+            ]]]
+          for name, count in get_json(f"/levels/{item}").items()]]])
+
+def add_details_panels(page, item_name):
+    extra_fields = get_json("/suggested_fields")['inventory']
+    extra_values = get_json(f"/attributes/{item_name}/{';'.join(just_names(extra_fields))}")
+    page.append(T.div[T.h2["Further details"],
+                      switchable_panel(switcher_id='display_or_edit_switcher',
+                                       panels={'display': extra_display_fields(extra_fields, extra_values),
+                                               'edit': T.form(action=f"/update_inventory_item", method='post')[
+                                                   extra_form_fields(extra_fields, extra_values),
+                                                   T.input(type='hidden', name='item_name', value=item_name),
+                                                   T.input(type='hidden', name='referring_page', value=request.url),
+                                                   T.input(type='submit', value="Update", method='post')
+                                               ]},
+                                       labels={'display': "Display",
+                                               'edit': "Edit"},
+                                       order=['display', 'edit'],
+                                       buttons_side='bottom',
+                                       initial='display')])
+
+def add_supplies_details(page, supplies):
+    page.append(T.div(class_='supplies')[
+        T.h2["Supplies"],
+        T.ul[[T.li[k, str(v)]
+              for k, v in supplies.items()]]])
+
 @app.route("/<item>")
 def item_home(item=None):
     """Display the home page for an item."""
@@ -398,8 +410,7 @@ def item_home(item=None):
     stock = contents['stock']
     location = details['nest']
     title = f"{item_name} ({item_type})"
-    summary = [item_name, " is ",
-               summarise_location(location)]
+    summary = [item_name, " is ", summarise_location(location)]
     if equipment_class:
         summary.append([" and is ",
                         T.span(class_=f"{equipment_class}_equipment")[equipment_class,
@@ -410,47 +421,10 @@ def item_home(item=None):
     if (picture := get_attribute(item, 'picture', local_only=False)):
         page.append(T.img(src=picture))
     if res['kind'] == 'stock':
-        page.append(T.table[
-            T.tr[T.th["Location"], T.th["Quantity"], T.th["Adjust by"]],
-            [[T.tr[
-                T.th(class_="stock_item")[name],
-                T.td[str(count)],
-                T.td[T.form(action="/update_stock", method='post')[
-                    T.input(type='text', name='delta', value="1"),
-                    T.input(type='submit', name='action', value='-'),
-                    T.input(type='submit', name='action', value='='),
-                    T.input(type='submit', name='action', value='+'),
-                    T.input(type='hidden', name='referring_page', value=request.url),
-                    T.input(type='hidden', name='stock_item', value=item),
-                    T.input(type='hidden', name='location', value=name),
-                    T.input(type='hidden', name='existing', value=str(count)),
-                ]]]
-              for name, count in get_json(f"/levels/{item}").items()]]])
+        add_stock_table(page, item)
     if (supplies := get_json(f"/supplies/{item_name}")):
-        page.append(T.div(class_='supplies')[
-            T.h2["Supplies"],
-            T.ul[
-                [
-                    T.li[k, str(v)]
-                    for k, v in supplies.items()
-                ]
-            ]])
-    extra_fields = get_json("/suggested_fields")['inventory']
-    extra_values = get_json(f"/attributes/{item_name}/{';'.join(just_names(extra_fields))}")
-    page.append(T.div[T.h2["Further details"],
-                      switchable_panel(switcher_id='display_or_edit_switcher',
-                                       panels={'display': extra_display_fields(extra_fields, extra_values),
-                                               'edit': T.form(action=f"/update_inventory_item", method='post')[
-                                                   extra_form_fields(extra_fields, extra_values),
-                                                   T.input(type='hidden', name='item_name', value=item_name),
-                                                   T.input(type='hidden', name='referring_page', value=request.url),
-                                                   T.input(type='submit', value="Update", method='post')
-                                               ]},
-                                       labels={'display': "Display",
-                                               'edit': "Edit"},
-                                       order=['display', 'edit'],
-                                       buttons_side='bottom',
-                                       initial='display')])
+        add_supplies_details(page, supplies)
+    add_details_panels(page, item_name)
     page.append(T.div[T.h2["Types"],
                       T.ul[[T.li[T.span(class_="type")[T.a(href=f"/{t}/type")[t]]] for t in types]]])
     if inventory:
@@ -461,23 +435,15 @@ def item_home(item=None):
         page.append(T.div[T.h2["Stock contents"],
                           T.ul[[T.li[T.span(class_="stock_item")[T.a(href=f"/{dweller['name']}")[dweller['name']]]]
                                 for dweller in stock]]])
-    # TODO: show the types, with a link on each to get the details of the type, which will also have a link to list everything of that type
-    # TODO: use the 'fits' attribute to construct where something can be moved to
-    # page.append(T.div[T.h2["API links"],
-    #                   T.ul[[T.li[T.a(href=value)[key]]
-    #                          for key, value in links.items()]]])
     return titled_page(title, page)
 
 @app.route("/<typename>/type")
 def type_details(typename):
     page = [T.h1[f'Details of type "{typename}"']]
     add_related_types(typename, page)
-    page.append([
-        T.h2["Items of type ", typename],
-        list_for_type(typename),
-    ])
-    return titled_page("Type details",
-                       T.div[page])
+    page.append([T.h2["Items of type ", typename],
+                 list_for_type(typename)])
+    return titled_page("Type details", T.div[page])
 
 def list_for_type(typename):
     """Return the expressionive structure listing the things of the given typename."""
@@ -491,9 +457,7 @@ def list_for_type(typename):
 def type_list(typename):
     return titled_page("Type list",
                        T.div[T.p["List of " + typename],
-                             list_for_type(typename)
-
-                             ])
+                             list_for_type(typename)])
 
 @app.route("/<item>/details")
 def details(item):

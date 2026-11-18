@@ -206,19 +206,20 @@ def direct_contents(location_barcode):
     return list(tidy_dictionary(d)
                 for d in inventory_data().find({'location': location_barcode}))
 
-def add_contents(entry):
-    """Add to this entry a 'contents' list of the things that list it as their location.
-    Recurse down."""
-    things = direct_contents(entry['barcode'])
-    if things:
-        for thing in things:
-            add_contents(thing)
-        entry['contents'] = things
-
 def inventory_contents(location, recursive=False):
     """Return the contents of the given location.
     The location may be given by barcode or name.
     With the recursive flag, add a 'contents' entry for each item."""
+
+    def add_contents(entry):
+        """Add to this entry a 'contents' list of the things that list it as their location.
+        Recurse down."""
+        things = direct_contents(entry['barcode'])
+        if things:
+            for thing in things:
+                add_contents(thing)
+            entry['contents'] = things
+
     top_level = direct_contents(lookup(location)['barcode'])
     if recursive:
         for entry in top_level:
@@ -390,11 +391,9 @@ async def dump_stock():
 @storage_manager.get("/search")
 def search(pattern):
     """Look for matches for a pattern."""
-    return {
-        'inventory': [tidy_dictionary(m) for m in inventory_data().find({'name': {'$regex': pattern}})],
-        'stock': [tidy_dictionary(m) for m in stock_data().find({'name': {'$regex': pattern}})],
-        'types': [tidy_dictionary(m) for m in types_data().find({'name': {'$regex': pattern}})],
-    }
+    return {'inventory': [tidy_dictionary(m) for m in inventory_data().find({'name': {'$regex': pattern}})],
+            'stock': [tidy_dictionary(m) for m in stock_data().find({'name': {'$regex': pattern}})],
+            'types': [tidy_dictionary(m) for m in types_data().find({'name': {'$regex': pattern}})]}
 
 @storage_manager.get("/")
 async def root():
@@ -424,10 +423,8 @@ def top_level_types():
 
 @storage_manager.get("/suggested_fields")
 def suggested_fields():
-    return {
-        'inventory': INVENTORY_FIELDS,
-        'stock': STOCK_FIELDS,
-    }
+    return {'inventory': INVENTORY_FIELDS,
+            'stock': STOCK_FIELDS}
 
 VIRTUAL_BARCODE_ISSUE_BASE = 1000000
 
@@ -439,8 +436,7 @@ def new_inventory_post(
     # TODO: add the item to the database
     return {'created': "inventory item",
             'item_name': item_name,
-            'item_type': item_type,
-            }
+            'item_type': item_type}
 
 @storage_manager.post("/new_stock")
 def new_stock_post(
@@ -450,8 +446,7 @@ def new_stock_post(
     # TODO: add the item to the database
     return {'created': "inventory item",
             'item_name': item_name,
-            'item_type': item_type,
-            }
+            'item_type': item_type}
 
 @storage_manager.post("/new_type")
 def new_type_post(
@@ -461,8 +456,7 @@ def new_type_post(
     # TODO: add the item to the database
     return {'created': "inventory item",
             'item_name': item_name,
-            'item_type': item_type,
-            }
+            'item_type': item_type}
 
 def links_for_item(base_url: str, item: dict):
     """Return the API links for an item."""
@@ -485,7 +479,6 @@ def links_for_item(base_url: str, item: dict):
 async def item_home(item, request: Request):
     """Return a 'home page' for the item.
     If the item does not exist, return a result to help create it."""
-    print("in item_home")
     item_dict = lookup(item)
     return (({'name': item_dict['name'],
               'kind': item_dict['kind']}
@@ -536,12 +529,8 @@ async def stocked(location):
 @storage_manager.get("/levels/{item}")
 def stock_levels(item):
     """Return the stock levels of an item."""
-    locs = lookup(item)['locations']
-    print("locs are", locs)
-    return {
-        lookup('0' + k)['name']: v
-        for k, v in locs.items()
-    }
+    return {lookup('0' + k)['name']: v
+            for k, v in lookup(item)['locations'].items()}
 
 @storage_manager.post("/update_stock")
 def update_stock(action, delta, stock_item, location, existing, referring_page):
@@ -647,17 +636,12 @@ def attribute(item, attr):
 @storage_manager.get("/attributes/{item}/{attrs}")
 def attributes(item, attrs):
     """FastAPI wrapper for `attribute_value`."""
-    print("getting attributes for", item)
-    print("attributes to get: ", attrs.split(';'))
-    result = {attr: value
-              for attr in attrs.split(';')
-              if ((value := attribute_value(item, attr)) is not None)}
-    print("result is", result)
-    return result
+    return {attr: value
+            for attr in attrs.split(';')
+            if ((value := attribute_value(item, attr)) is not None)}
 
 @storage_manager.post("/update_inventory_item")
 async def update_item(request: Request):
-    print("in update POST")
     inv = inventory_data()
     item_name = request.query_params['item_name']
     inv.update_one({'name': item_name}, # TODO: identify it by barcode rather than name

@@ -132,21 +132,39 @@ def summarise_location(location):
         locs.append(summarise_one_location(loc))
     return locs
 
+def just_name(name):
+    """A field name can be given as just a string, or as a list beginning with the string.
+    The second item of the list will be the hover text."""
+    return (name if isinstance(name, str) else name[0])
+
+def name_text(name):
+    """Return the expressionive structure to display a name."""
+    return (name.replace('_', ' ')
+            if isinstance(name, str)
+            else T.span(class_='name')[name[0].replace('_', ' '),
+                                       T.span(class_='explanation')[name[1]]])
+
+def just_names(names):
+    """Like `just_name` but for a list of names."""
+    return [just_name(name) for name in names]
+
 def extra_form_fields(fieldnames, valuesdict):
     """Return a table of form fields for setting details of an item."""
-    return [T.table[[T.tr[T.td(class_='attr_table_label')[name.replace('_', ' ')],
-                          T.td[T.input(type='text', name=name, value=valuesdict.get(name, ""))]]
-                     for name in fieldnames]]]
+    return [T.table[[T.tr[T.td(class_='attr_table_label')[name_text(descr)],
+                          T.td[T.input(type='text',
+                                       name=(name := just_name(descr)),
+                                       value=valuesdict.get(name, ""))]]
+                     for descr in fieldnames]]]
 
 def extra_display_fields(fieldnames, item_dict):
     """Return a table of attribute names and values."""
-    return [T.table[[T.tr[T.td(class_='attr_table_label')[name.replace('_', ' ')],
+    return [T.table[[T.tr[T.td(class_='attr_table_label')[name_text(descr)],
                           T.td(class_='attr_table_value')[
                               T.a(href=item_dict.get(name+"_URL"))[value]
                               if name+"_URL" in item_dict
                               else value]]
-                     for name in fieldnames
-                     if ((not name.endswith("_URL"))
+                     for descr in fieldnames
+                     if ((not (name := just_name(descr)).endswith("_URL"))
                          and (value := item_dict.get(name)) is not None)]]]
 
 def type_selector(kind='inventory-'):
@@ -172,6 +190,7 @@ def inventory_create_or_edit_form(item_name="", barcode=0, get_existing=True):
         T.button(type='submit')["Create inventory item"]]]
 
 def stock_create_or_edit_form(item_name="", barcode=0, get_existing=True):
+    extra_fields = get_json("/suggested_fields")['stock']
     return T.div[T.form(action="/new_stock_item", method='post')[
         T.label(for_='barcode')["Barcode:"],
         T.input(type='text', name='barcode', value=str(barcode)),
@@ -408,7 +427,7 @@ def item_home(item=None):
                 ]]]
               for name, count in get_json(f"/levels/{item}").items()]]])
     extra_fields = get_json("/suggested_fields")['inventory']
-    extra_values = get_json(f"/attributes/{item_name}/{';'.join(extra_fields)}")
+    extra_values = get_json(f"/attributes/{item_name}/{';'.join(just_names(extra_fields))}")
     page.append(T.div[T.h2["Further details"],
                       switchable_panel(switcher_id='display_or_edit_switcher',
                                        panels={'display': extra_display_fields(extra_fields, extra_values),

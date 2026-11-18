@@ -32,4 +32,16 @@ td.attr_table_value {
     text-align: start;
 }
 
+.name:hover .explanation {
+  visibility: visible;
+}
+
+.explanation {
+  visibility: hidden;
+  background-color: yellow;
+  z-index: 1;
+  position: absolute;
+  min-width: 24em;
+}
+
 </style>

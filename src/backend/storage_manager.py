@@ -31,11 +31,14 @@ storage_manager.add_middleware(
 )
 
 INVENTORY_FIELDS = [
-    "Manufacturer", "Manufacturer_URL",
+    ["Manufacturer", "The name of the manufacturer"],
+    ["Manufacturer_URL", "This should be the home page of the manufacturer."],
+    ["Manufacturer_page", "The title for the manufacturer's page for this equipment"],
+    ["Manufacturer_page_URL", "This should be the manufacturer's page for this equipment."],
     "Supplier", "Supplier_URL",
     "Date_acquired", "Date_disposed",
-    "PAT tested",
-    "Picture",
+    ["PAT tested", "The date this equipment was last PAT tested."],
+    ["Picture", "The URL of an image to display inline."],
     "Training_page",
     "Owners_email",
 ]

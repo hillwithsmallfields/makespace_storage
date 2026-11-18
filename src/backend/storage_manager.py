@@ -648,12 +648,9 @@ async def update_item(request: Request):
     print("in update POST")
     inv = inventory_data()
     item_name = request.query_params['item_name']
-    for k, v in request.query_params.items():
-        print("updating", item_name, "key", k, "to", v)
-        # TODO: handle numeric values --- do I need to convert them myself?
-        inv.update_one({'name': item_name}, # TODO: identify it by barcode rather than name
-                       {'$set': {k, v}},
-                       upsert=True)
+    inv.update_one({'name': item_name}, # TODO: identify it by barcode rather than name
+                   {'$set': dict(request.query_params.items())},
+                   upsert=True)
     return {'updated': item_name}
 
 @storage_manager.get("/contents/{location}")

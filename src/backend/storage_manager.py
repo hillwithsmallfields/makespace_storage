@@ -190,9 +190,13 @@ def lookup(name_or_barcode):
         return name_or_barcode
     if is_barcode(name_or_barcode):
         barcode = normalise_barcode(name_or_barcode)
-        return mark_kind((inventory_data if is_inventory(barcode) else stock_data)()
-                         .find_one({'barcode': int(barcode)}),
-                         'inventory')
+        is_inv = is_inventory(barcode)
+        found = ((inventory_data if is_inv else stock_data)()
+                 .find_one({'barcode': int(barcode)}))
+        if found:
+            return mark_kind(found, 'inventory' if is_inv else 'stock')
+        return {'kind': 'new_inventory' if is_inv else 'new_stock',
+                'barcode': barcode}
     if (item := inventory_data().find_one({'name': name_or_barcode})):
         return mark_kind(item, 'inventory')
     if (item := stock_data().find_one({'name': name_or_barcode})):
@@ -479,17 +483,21 @@ def links_for_item(base_url: str, item: dict):
 async def item_home(item, request: Request):
     """Return a 'home page' for the item.
     If the item does not exist, return a result to help create it."""
+    print("in /item for", item)
     item_dict = lookup(item)
-    return (({'name': item_dict['name'],
-              'kind': item_dict['kind']}
-             if item_dict['kind'] == 'type'
-             else {'name': item_dict['name'],
-                   'type': item_dict['type'],
-                   'kind': item_dict['kind'],
-                   'links': links_for_item(request.url, item_dict)})
-            if item_dict
-            else {'links': {'new': f"{request.url}/new"},
-                  'kind': 'unknown'})
+    return ({'links': {'new': f"{request.url}/new"},
+             'kind': 'unknown'}
+            if item_dict is None
+            else ({'name': item_dict['name'],
+                   'kind': item_dict['kind']}
+                  if item_dict['kind'] == 'type'
+                  else ({'name': item_dict['name'],
+                         'type': item_dict['type'],
+                         'kind': item_dict['kind'],
+                         'links': links_for_item(request.url, item_dict)}
+                        if not item_dict['kind'].startswith('new_')
+                        else {'kind': item_dict['kind'],
+                              'barcode': item_dict['barcode']})))
 
 @storage_manager.get("/supplies/{item}")
 def supplies(item):

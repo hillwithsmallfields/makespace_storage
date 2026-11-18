@@ -213,7 +213,7 @@ def stock_create_or_edit_form(item_name="", barcode=0, get_existing=True):
                            else {})),
         T.button(type='submit')["Create stock item type"]]]
 
-def type_create_or_edit_form(item_name, get_existing=True):
+def inventory_type_create_or_edit_form(item_name, get_existing=True):
     return T.div[T.form(action="/new_type", method='post')[
         T.label(for_='type_name')["Type name:"],
         T.input(type='text', name='type_name', value=item_name),
@@ -223,26 +223,38 @@ def type_create_or_edit_form(item_name, get_existing=True):
         T.br,
         T.button(type='submit')["Create type"]]]
 
-@app.route("/item/<item>/new")
-def create_something_page(item):
+def stock_type_create_or_edit_form(item_name, barcode, get_existing=True):
+    return T.div[T.form(action="/new_type", method='post')[
+        T.label(for_='barcode')["Barcode:"],
+        T.input(type='text', name='barcode', value=str(barcode)),
+        T.br,
+        T.label(for_='type_name')["Type name:"],
+        T.select(name='type_name', id='type_name')[type_selector(kind='stock-')],
+        T.br,
+        T.button(type='submit')["Link stock type"]]]
+
+@app.route("/item/<item>/new/<hint>")
+def create_something_page(item, hint):
     numeric = re.match("^[0-9]+$", item)
     barcode = int(item) if numeric else None
     if numeric:
         item = ""
     return titled_page(
         "Create item",
-        T.div[T.p['"', item, '" was not found in any of our collections.'],
+        T.div[T.p['"', item or str(barcode), '" was not found in any of our collections.'],
               T.p["This is your chance to add it to the appropriate collection."],
               switchable_panel(switcher_id='creator_switcher',
                                panels={'inventory': inventory_create_or_edit_form(item, barcode, False),
                                        'stock': stock_create_or_edit_form(item, barcode, False),
-                                       'type': type_create_or_edit_form(item, False)},
+                                       'type': inventory_type_create_or_edit_form(item, False),
+                                       'stocktype': stock_type_create_or_edit_form(item, barcode, False)},
                                labels={'inventory': "Inventory item",
                                        'stock': "Stock item",
-                                       'type': "Type"},
-                               order=['inventory', 'stock', 'type'],
+                                       'type': "Inventory type",
+                                       'stocktype': "Stock type"},
+                               order=['inventory', 'stock', 'type', 'stocktype'],
                                buttons_side='top',
-                               initial='inventory')])
+                               initial=hint or 'inventory')])
 
 @app.route("/new_type", methods=['post'])
 def new_type():
@@ -418,6 +430,10 @@ def item_home(item=None):
                  list_for_type(item)]]
         add_related_types(item, page)
         return titled_page(title, page)
+    if res['kind'] == 'new_inventory':
+        return redirect(f"/item/{res['barcode']}/new/inventory")
+    if res['kind'] == 'new_stock':
+        return redirect(f"/item/{res['barcode']}/new/stock")
     details = get_json(f"/details/{item}")
     equipment_class = get_attribute(item, 'equipment class', default=None)
     types = details['types']

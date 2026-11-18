@@ -361,7 +361,7 @@ def add_stock_table(page, item):
     page.append(T.table[
         T.tr[T.th["Location"], T.th["Quantity"], T.th["Adjust by"]],
         [[T.tr[
-            T.th(class_="stock_item")[name],
+            T.td(class_="stock_item attr_table_label")[T.a(href=name)[name]],
             T.td[str(count)],
             T.td[T.form(action="/update_stock", method='post')[
                 T.input(type='text', name='delta', value="1"),
@@ -425,6 +425,10 @@ def item_home(item=None):
         return redirect(f"/item/{res['barcode']}/new/inventory")
     if res['kind'] == 'new_stock':
         return redirect(f"/item/{res['barcode']}/new/stockcode")
+    if res['kind'] == 'stock':
+        page = [T.div[T.h1["Stock: ", item]]]
+        add_stock_table(page, item)
+        return titled_page(item, page)
     details = get_json(f"/details/{item}")
     equipment_class = get_attribute(item, 'equipment class', default=None)
     types = details['types']
@@ -439,15 +443,12 @@ def item_home(item=None):
     summary = [item_name, " is a ", res['kind'], " item ", summarise_location(location)]
     if equipment_class:
         summary.append([" and is ",
-                        T.span(class_=f"{equipment_class}_equipment")[equipment_class,
-                                                                      " equipment"]])
+                        T.span(class_=equipment_class)[get_attribute(item, 'equipment phrase', default='of unknown type')]])
     summary.append(".")
     page = [T.div[T.h1(class_=f"{equipment_class}_equipment" or "other")[title],
                   T.p[summary]]]
     if (picture := get_attribute(item, 'picture', local_only=False)):
         page.append(T.img(src=picture))
-    if res['kind'] == 'stock':
-        add_stock_table(page, item)
     if (supplies := get_json(f"/supplies/{item_name}")):
         add_supplies_details(page, supplies)
     add_details_panels(page, item_name, res['kind'])

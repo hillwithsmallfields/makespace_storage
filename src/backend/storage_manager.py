@@ -92,10 +92,11 @@ def types_data():
 def stock_types_data():
     """Get the stock types collection from the database.
 
-    Each row must define a 'barcode' and a 'name'."""
+    Each row must define a 'barcode' and a 'type'.
+    It may also define a 'description'."""
     global _stock_types
     if _stock_types is None:
-        _stock_types = _ensure_database()['stock-types']
+        _stock_types = _ensure_database()['stock_types']
         _stock_types.create_index('name', unique=True) # ignored if it already exists
     return _stock_types
 
@@ -126,8 +127,7 @@ def stock_data():
     """Get the stock collection from the database.
 
     Each row must define:
-    - name
-    - quantity
+    - type (which should match a type in the stock_types_data collection)
     - locations (as a dictionary of location barcode to quantity in that location)
     """
     global _stock
@@ -397,8 +397,9 @@ async def dump_stock():
 def search(pattern):
     """Look for matches for a pattern."""
     return {'inventory': [tidy_dictionary(m) for m in inventory_data().find({'name': {'$regex': pattern}})],
-            'stock': [tidy_dictionary(m) for m in stock_data().find({'name': {'$regex': pattern}})],
-            'types': [tidy_dictionary(m) for m in types_data().find({'name': {'$regex': pattern}})]}
+            'stock': [tidy_dictionary(m) for m in stock_data().find({'type': {'$regex': pattern}})],
+            'types': [tidy_dictionary(m) for m in types_data().find({'name': {'$regex': pattern}})],
+            'stock_types': [tidy_dictionary(m) for m in stock_types_data().find({'type': {'$regex': pattern}})]}
 
 @storage_manager.get("/")
 async def root():
@@ -418,7 +419,8 @@ def inventory_types():
 @storage_manager.get("/stock-types")
 def stock_types():
     """Return all the stock types."""
-    return {'types': [t['type'] for t in stock_types_data().find({})]}
+    return {'types': sorted(set([t['type'] for t in stock_types_data().find({})]
+                                + [t['type'] for t in stock_data().find({})]))}
 
 @storage_manager.get("/top-level-types")
 def top_level_types():
@@ -543,9 +545,23 @@ def stock_levels(item):
             for k, v in lookup(item)['locations'].items()}
 
 @storage_manager.post("/update_stock")
-def update_stock(action, delta, stock_item, location, existing, referring_page):
+def update_stock(request: Request):
+    action = request.query_params['action'][0],
+    delta = int(request.query_params['delta']) * (-1 if action == '-' else 1)
+    stock_item = request.query_params['stock_item']
+    location = str(lookup(request.query_params['location'])['barcode'])
+    existing = request.query_params['existing']
+    referring_page = request.query_params['referring_page']
     print("in update_stock with action", action, "delta:", delta, "stock_item:", stock_item, "location:", location, "existing:", existing, "referring_page:", referring_page)
-    return {'placeholder': "will write"}
+    # TODO: mongo stuff for this
+    data = stock_data()
+    # if action == '=':
+    #     data.update_one({'type': stock_item,
+    #                      f"locations.{location}"}, {'$set': delta})
+    # else:
+    #     data.update_one({'type': stock_item,
+    #                      f"locations.{location}"}, {'$inc': delta})
+    return {'placeholder': f"updated {stock_item} locations.{location}"}
 
 @storage_manager.get("/what/{pattern}")
 async def what(pattern):

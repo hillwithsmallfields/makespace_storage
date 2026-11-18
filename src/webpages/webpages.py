@@ -426,6 +426,15 @@ def item_home(item=None):
                     T.input(type='hidden', name='existing', value=str(count)),
                 ]]]
               for name, count in get_json(f"/levels/{item}").items()]]])
+    if (supplies := get_json(f"/supplies/{item_name}")):
+        page.append(T.div(class_='supplies')[
+            T.h2["Supplies"],
+            T.ul[
+                [
+                    T.li[k, str(v)]
+                    for k, v in supplies.items()
+                ]
+            ]])
     extra_fields = get_json("/suggested_fields")['inventory']
     extra_values = get_json(f"/attributes/{item_name}/{';'.join(just_names(extra_fields))}")
     page.append(T.div[T.h2["Further details"],

@@ -46,6 +46,7 @@ INVENTORY_FIELDS = [
     ["Training_page", "The URL of a page in our training web site."],
     ["Owners_email", "The email of the owners (without 'mailto:')"],
     ["Grid location", "The metre square coordinates as letters (across) and numbers (away)."],
+    ["Supplies", "Semicolon-separated list of stock type names of supplies."],
 ]
 
 STOCK_FIELDS = [
@@ -91,10 +92,7 @@ def types_data():
 def stock_types_data():
     """Get the stock types collection from the database.
 
-    Each row must define a 'name', and may define:
-    - parent (a parent type, except at the top level)
-    - preposition (if this is a type of storage location)
-    """
+    Each row must define a 'barcode' and a 'name'."""
     global _stock_types
     if _stock_types is None:
         _stock_types = _ensure_database()['stock-types']
@@ -499,6 +497,14 @@ async def item_home(item, request: Request):
             if item_dict
             else {'links': {'new': f"{request.url}/new"},
                   'kind': 'unknown'})
+
+@storage_manager.get("/supplies/{item}")
+def supplies(item):
+    """Return the supplies for an item."""
+    types = stock_types_data()
+    return {st: {defn['barcode'] for defn in types.find({'name': st})}
+            for st in [s.strip()
+                       for s in lookup(item).get('supplies', "").split(';')]}
 
 @storage_manager.get("/where/{item}")
 async def where(item, full=False):

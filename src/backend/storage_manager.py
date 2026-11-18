@@ -265,6 +265,7 @@ def full_location(item):
     """Return the full hierarchical location data for an item.
     The item may be given as a barcode or a dictionary."""
     item = lookup(item)
+    print("getting full location for", item)
     match item['kind']:
         case 'inventory':
             return fill_out_location(item['location'])
@@ -475,7 +476,7 @@ def links_for_item(base_url: str, item: dict):
         links['move'] = f"{base_url}/move/" + "{location}"
     if False:                   # don't allow this while the project is at the demo stage
         links['delete'] = f"{base_url}/delete"
-    if direct_contents(item['barcode']):
+    if 'barcode' in item and direct_contents(item['barcode']):
         links['contains'] = f"{base_url}/contains"
     return links
 
@@ -492,7 +493,7 @@ async def item_home(item, request: Request):
                    'kind': item_dict['kind']}
                   if item_dict['kind'] == 'type'
                   else ({'name': item_dict['name'],
-                         'type': item_dict['type'],
+                         'type': item_dict.get('type', 'unknown'),
                          'kind': item_dict['kind'],
                          'links': links_for_item(request.url, item_dict)}
                         if not item_dict['kind'].startswith('new_')

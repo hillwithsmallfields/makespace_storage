@@ -155,11 +155,11 @@ def linked_value(descr, value, item_dict):
 
 def extra_form_fields(fieldnames, valuesdict):
     """Return a table of form fields for setting details of an item."""
-    return [T.table[[T.tr[T.td(class_='attr_table_label')[name_text(descr)],
-                          T.td[T.input(type='text',
-                                       name=(name := just_name(descr)),
-                                       value=valuesdict.get(name, ""))]]
-                     for descr in fieldnames]]]
+    return [[T.tr[T.td(class_='attr_table_label')[name_text(descr)],
+                  T.td[T.input(type='text',
+                               name=(name := just_name(descr)),
+                               value=valuesdict.get(name, ""))]]
+             for descr in fieldnames]]
 
 def extra_display_fields(fieldnames, item_dict):
     """Return a table of attribute names and values.
@@ -180,57 +180,48 @@ def type_selector(kind='inventory-'):
 def inventory_create_or_edit_form(item_name="", barcode=0, get_existing=True):
     extra_fields = get_json("/suggested_fields")['inventory']
     return T.div[T.form(action="/new_inventory", method='post')[
-        T.label(for_='barcode')["Barcode:"],
-        T.input(type='text', name='barcode', value=str(barcode)),
-        T.br,
-        T.label(for_='item_name')["Item name:"],
-        T.input(type='text', name='item_name', value=item_name),
-        T.br,
-        T.label(for_='item_type')["Item type:"],
-        T.select(name='item_type', id='item_type')[type_selector()],
-        T.br,
-        extra_form_fields(extra_fields,
-                          (get_json(f"/attributes/{item_name}/{';'.join(extra_fields)}")
+        T.table[T.tr[T.td(class_='attr_table_label')[T.label(for_='barcode')["Barcode:"]],
+                     T.td[T.input(type='text', name='barcode', value=str(barcode))]],
+                T.tr[T.td(class_='attr_table_label')[T.label(for_='item_name')["Item name:"]],
+                     T.td[T.input(type='text', name='item_name', value=item_name)]],
+                T.tr[T.td(class_='attr_table_label')[T.label(for_='item_type')["Item type:"]],
+                     T.td[T.select(name='item_type', id='item_type')[type_selector()]]],
+                extra_form_fields(extra_fields,
+                                  (get_json(f"/attributes/{item_name}/{';'.join(extra_fields)}")
                            if get_existing
-                           else {})),
+                           else {}))],
         T.button(type='submit')["Create inventory item"]]]
 
-def stock_create_or_edit_form(item_name="", barcode=0, get_existing=True):
+def stock_type_create_or_edit_form(item_name="", get_existing=True):
     extra_fields = get_json("/suggested_fields")['stock']
     return T.div[T.form(action="/new_stock_item", method='post')[
-        T.label(for_='barcode')["Barcode:"],
-        T.input(type='text', name='barcode', value=str(barcode)),
-        T.br,
-        T.label(for_='item_name')["Stock item name:"],
-        T.input(type='text', name='item_name', value=item_name),
-        T.br,
-        T.label(for_='item_type')["Item type:"],
-        T.select(name='item_type', id='item_type')[type_selector(kind='stock-')],
-        T.br,
-        extra_form_fields(get_json("/suggested_fields")['stock'],
-                          (get_json(f"/attributes/{item_name}/{';'.join(extra_fields)}")
+        T.table[T.tr[T.td(class_='attr_table_label')[T.label(for_='item_name')["Stock type name"]],
+                     T.td[T.input(type='text', name='item_name', value=item_name)]],
+                extra_form_fields(get_json("/suggested_fields")['stock'],
+                                  (get_json(f"/attributes/{item_name}/{';'.join(extra_fields)}")
                            if get_existing
-                           else {})),
+                           else {}))],
         T.button(type='submit')["Create stock item type"]]]
 
 def inventory_type_create_or_edit_form(item_name, get_existing=True):
-    return T.div[T.form(action="/new_type", method='post')[
-        T.label(for_='type_name')["Type name:"],
-        T.input(type='text', name='type_name', value=item_name),
-        T.br,
-        T.label(for_='parent_type')["Parent type:"],
-        T.select(name='parent_type', id='parent_type')[type_selector()],
-        T.br,
+    return T.div[
+        T.form(action="/new_type", method='post')[
+            T.table[T.tr[T.td(class_='attr_table_label')[T.label(for_='type_name')["Type name"]],
+                         T.td[T.input(type='text', name='type_name', value=item_name)]],
+                    T.tr[T.td(class_='attr_table_label')[T.label(for_='parent_type')["Parent type:"]],
+                         T.td[T.select(name='parent_type', id='parent_type')[type_selector()]]]],
         T.button(type='submit')["Create type"]]]
 
-def stock_type_create_or_edit_form(item_name, barcode, get_existing=True):
-    return T.div[T.form(action="/new_type", method='post')[
-        T.label(for_='barcode')["Barcode:"],
-        T.input(type='text', name='barcode', value=str(barcode)),
-        T.br,
-        T.label(for_='type_name')["Type name:"],
-        T.select(name='type_name', id='type_name')[type_selector(kind='stock-')],
-        T.br,
+def stock_link_barcode_to_stock_type_form(item_name, barcode, get_existing=True):
+    return T.div[
+        T.p["""Stock items are known by their stock type name, and not by barcode, """,
+            """because there may be multiple barcodes for each stock type.""",
+            """This form is to link a new barcode to an existing stock type."""],
+        T.form(action="/new_type", method='post')[
+        T.table[T.tr[T.td[T.label(for_='barcode')["Barcode:"]],
+                     T.td[T.input(type='text', name='barcode', value=str(barcode))]],
+                T.tr[T.td[T.label(for_='type_name')["Type name:"]],
+                     T.td[T.select(name='type_name', id='type_name')[type_selector(kind='stock-')]]]],
         T.button(type='submit')["Link stock type"]]]
 
 @app.route("/item/<item>/new/<hint>")
@@ -245,14 +236,14 @@ def create_something_page(item, hint):
               T.p["This is your chance to add it to the appropriate collection."],
               switchable_panel(switcher_id='creator_switcher',
                                panels={'inventory': inventory_create_or_edit_form(item, barcode, False),
-                                       'stock': stock_create_or_edit_form(item, barcode, False),
                                        'type': inventory_type_create_or_edit_form(item, False),
-                                       'stocktype': stock_type_create_or_edit_form(item, barcode, False)},
+                                       'stocktype': stock_type_create_or_edit_form(item, False),
+                                       'stockcode': stock_link_barcode_to_stock_type_form(item, barcode, False)},
                                labels={'inventory': "Inventory item",
-                                       'stock': "Stock item",
                                        'type': "Inventory type",
-                                       'stocktype': "Stock type"},
-                               order=['inventory', 'stock', 'type', 'stocktype'],
+                                       'stocktype': "Stock type",
+                                       'stockcode': "Link barcode to stock type"},
+                               order=['inventory', 'type', 'stocktype', 'stockcode'],
                                buttons_side='top',
                                initial=hint or 'inventory')])
 
@@ -384,14 +375,14 @@ def add_stock_table(page, item):
             ]]]
           for name, count in get_json(f"/levels/{item}").items()]]])
 
-def add_details_panels(page, item_name):
-    extra_fields = get_json("/suggested_fields")['inventory']
+def add_details_panels(page, item_name, kind='inventory'):
+    extra_fields = get_json("/suggested_fields")[kind]
     extra_values = get_json(f"/attributes/{item_name}/{';'.join(just_names(extra_fields))}")
     page.append(T.div[T.h2["Further details"],
                       switchable_panel(switcher_id='display_or_edit_switcher',
                                        panels={'display': extra_display_fields(extra_fields, extra_values),
                                                'edit': T.form(action=f"/update_inventory_item", method='post')[
-                                                   extra_form_fields(extra_fields, extra_values),
+                                                   T.table[extra_form_fields(extra_fields, extra_values)],
                                                    T.input(type='hidden', name='item_name', value=item_name),
                                                    T.input(type='hidden', name='referring_page', value=request.url),
                                                    T.input(type='submit', value="Update", method='post')
@@ -433,7 +424,7 @@ def item_home(item=None):
     if res['kind'] == 'new_inventory':
         return redirect(f"/item/{res['barcode']}/new/inventory")
     if res['kind'] == 'new_stock':
-        return redirect(f"/item/{res['barcode']}/new/stock")
+        return redirect(f"/item/{res['barcode']}/new/stockcode")
     details = get_json(f"/details/{item}")
     equipment_class = get_attribute(item, 'equipment class', default=None)
     types = details['types']
@@ -459,7 +450,7 @@ def item_home(item=None):
         add_stock_table(page, item)
     if (supplies := get_json(f"/supplies/{item_name}")):
         add_supplies_details(page, supplies)
-    add_details_panels(page, item_name)
+    add_details_panels(page, item_name, res['kind'])
     page.append(T.div[T.h2["Types"],
                       T.ul[[T.li[T.span(class_="type")[T.a(href=f"/{t}/type")[t]]] for t in types]]])
     if inventory:

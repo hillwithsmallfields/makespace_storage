@@ -46,7 +46,7 @@ INVENTORY_FIELDS = [
     ["Training_page", "The URL of a page in our training web site."],
     ["Owners_email", "The email of the owners (without 'mailto:')"],
     ["Grid location", "The metre square coordinates as letters (across) and numbers (away)."],
-    ["Supplies", "Semicolon-separated list of stock type names of supplies."],
+    ["Supplies", "Semicolon-separated list of stock type names of supplies.", 'supplies'],
 ]
 
 STOCK_FIELDS = [
@@ -497,7 +497,8 @@ def supplies(item):
     types = stock_types_data()
     return {st: {defn['barcode'] for defn in types.find({'name': st})}
             for st in [s.strip()
-                       for s in lookup(item).get('supplies', "").split(';')]}
+                       for s in lookup(item).get('supplies', "").split(';')
+                       if s]}
 
 @storage_manager.get("/where/{item}")
 async def where(item, full=False):

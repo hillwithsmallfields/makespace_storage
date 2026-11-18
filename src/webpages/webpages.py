@@ -135,6 +135,24 @@ def just_names(names):
     """Like `just_name` but for a list of names."""
     return [just_name(name) for name in names]
 
+def supplies_value(descr, value, item_dict):
+    return [T.a(href=f"/item/{si}")[si]
+            for si in [s.strip() for s in value.split(';')]]
+
+NAME_DISPLAY_HANDLERS = {
+    'supplies': supplies_value,
+}
+
+def linked_value(descr, value, item_dict):
+    """Return the expressionive structure for an attribute value cell.
+    Special handling is applied as relevant."""
+    name = just_name(descr)
+    return (NAME_DISPLAY_HANDLERS[descr[2]](descr, value, item_dict)
+            if isinstance(descr, list) and len(descr) >= 3
+            else (T.a(href=item_dict.get(name+"_URL"))[value]
+                  if name+"_URL" in item_dict
+                  else value))
+
 def extra_form_fields(fieldnames, valuesdict):
     """Return a table of form fields for setting details of an item."""
     return [T.table[[T.tr[T.td(class_='attr_table_label')[name_text(descr)],
@@ -144,12 +162,13 @@ def extra_form_fields(fieldnames, valuesdict):
                      for descr in fieldnames]]]
 
 def extra_display_fields(fieldnames, item_dict):
-    """Return a table of attribute names and values."""
+    """Return a table of attribute names and values.
+    Each name may be a string, or a list of strings, thus:
+    - the actual name
+    - a help string giving more information
+    - optionally, the name of a display handler bound in NAME_DISPLAY_HANDLERS"""
     return [T.table[[T.tr[T.td(class_='attr_table_label')[name_text(descr)],
-                          T.td(class_='attr_table_value')[
-                              T.a(href=item_dict.get(name+"_URL"))[value]
-                              if name+"_URL" in item_dict
-                              else value]]
+                          T.td(class_='attr_table_value')[linked_value(descr, value, item_dict)]]
                      for descr in fieldnames
                      if ((not (name := just_name(descr)).endswith("_URL"))
                          and (value := item_dict.get(name)) is not None)]]]
@@ -368,7 +387,7 @@ def add_details_panels(page, item_name):
                                        labels={'display': "Display",
                                                'edit': "Edit"},
                                        order=['display', 'edit'],
-                                       buttons_side='bottom',
+                                       buttons_side='top',
                                        initial='display')])
 
 def add_supplies_details(page, supplies):
@@ -410,7 +429,7 @@ def item_home(item=None):
     stock = contents['stock']
     location = details['nest']
     title = f"{item_name} ({item_type})"
-    summary = [item_name, " is ", summarise_location(location)]
+    summary = [item_name, " is a ", res['kind'], " item ", summarise_location(location)]
     if equipment_class:
         summary.append([" and is ",
                         T.span(class_=f"{equipment_class}_equipment")[equipment_class,

@@ -28,7 +28,7 @@ def finder_form():
         T.fieldset[
             T.legend["Item finder"],
             T.label(for_="item")["Name or barcode"],
-            T.input(type="text", name="item", id="item_to_find"),
+            T.input(type="text", name="item", id="item_to_find", autofocus=True),
             T.button(type='submit')["Find item"]]]
 
 def header():

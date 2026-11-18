@@ -35,13 +35,19 @@ INVENTORY_FIELDS = [
     ["Manufacturer_URL", "This should be the home page of the manufacturer."],
     ["Manufacturer_page", "The title for the manufacturer's page for this equipment"],
     ["Manufacturer_page_URL", "This should be the manufacturer's page for this equipment."],
-    "Supplier", "Supplier_URL",
-    "Date_acquired", "Date_disposed",
+    ["Supplier", "The name of the company we bought this item from."],
+    ["Supplier_URL", "The supplier's home page."],
+    ["Supplier_page", "The title for the page for this equipment at the company we bought it from."],
+    ["Supplier_page_URL", "The supplier's page for this type of equipment."],
+    ["Date_acquired", "The date we acquired this equipment, as an ISOdate."],
+    ["Date_disposed", "The date we got rid of this equipment, as an ISOdate.  We may exclude from listing items disposed of in the past."],
     ["PAT tested", "The date this equipment was last PAT tested."],
     ["Picture", "The URL of an image to display inline."],
-    "Training_page",
-    "Owners_email",
+    ["Training_page", "The URL of a page in our training web site."],
+    ["Owners_email", "The email of the owners (without 'mailto:')"],
+    ["Grid location", "The metre square coordinates as letters (across) and numbers (away)."],
 ]
+
 STOCK_FIELDS = [
     "Supplier", "Supplier_URL",
     "Minimum_stock",

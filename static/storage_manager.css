@@ -41,7 +41,6 @@ td.attr_table_value {
   background-color: yellow;
   z-index: 1;
   position: absolute;
-  min-width: 24em;
 }
 
 </style>

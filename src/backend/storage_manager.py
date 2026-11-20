@@ -638,6 +638,9 @@ def parent_type_list(ty):
             break
     return result
 
+def is_instance(item, typename):
+    return typename in [ty['name'] for ty in parent_type_list(typename)]
+
 def add_types(item):
     """Add the hierarchical types to a dictionary, and return the dictionary."""
     item['types'] = hierarchical_type(item)

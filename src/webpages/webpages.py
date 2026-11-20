@@ -139,8 +139,43 @@ def supplies_value(descr, value, item_dict):
     return [T.a(href=f"/item/{si}")[si]
             for si in [s.strip() for s in value.split(';')]]
 
+def location_value(descr, value, item_dict):
+    # For now, it's the same result as not having a display handler,
+    # but I'd like it to have a hover text giving the full location.
+    # But really, it's got a handler because I want it to have one for
+    # the edit form.
+    return T.a(href=item_dict.get(name+"_URL"))[value]
+
+def edit_supplies(descr, value, item_dict):
+    # For now, it's the same result as not having an edit handler, but
+    # I'd like it to put in multiple <select>s plus a way of adding
+    # and deleting entries.  Or perhaps a list of checkboxes and a way
+    # of adding things?
+    return T.input(type='text',
+                   name=(name := just_name(descr)),
+                   value=valuesdict.get(name, ""))
+
+def edit_location(descr, value, item_dict):
+    """Make an edit form part for the location of an item.
+    Only the locations in which that type of item can be stored are presented."""
+    name = just_name(descr)
+    value = valuesdict.get(name, "")
+    item_type = valuesdict.get('type')
+    return T.select(name=name, id=name)[
+        [T.option(value=opt,
+                  # TODO: can I give selected=False to get it not selected?
+                  # I may have to not supply it at all in those cases
+                  selected=(value==opt))[opt]
+         for opt in get_json(f"/locations_for/{item_type}")['locations']]]
+
 NAME_DISPLAY_HANDLERS = {
     'supplies': supplies_value,
+    'location': location_value,
+}
+
+EDIT_HANDLERS = {
+    'supplies': edit_supplies,
+    'location': edit_location,
 }
 
 def linked_value(descr, value, item_dict):
@@ -154,19 +189,23 @@ def linked_value(descr, value, item_dict):
                   else value))
 
 def extra_form_fields(fieldnames, valuesdict):
-    """Return a table of form fields for setting details of an item."""
+    """Return a table of form fields for setting details of an item.
+    See `extra_display_fields` for details of what can be in a descriptor."""
     return [[T.tr[T.td(class_='attr_table_label')[name_text(descr)],
-                  T.td[T.input(type='text',
-                               name=(name := just_name(descr)),
-                               value=valuesdict.get(name, ""))]]
-             for descr in fieldnames]]
+                  (EDIT_HANDLERS[descr[2]](descr, value, item_dict)
+                   if isinstance(descr, list) and len(descr) >= 3
+                   else T.td[T.input(type='text',
+                                     name=(name := just_name(descr)),
+                                     value=valuesdict.get(name, ""))])]
+            for descr in fieldnames]]
 
 def extra_display_fields(fieldnames, item_dict):
     """Return a table of attribute names and values.
     Each name may be a string, or a list of strings, thus:
     - the actual name
     - a help string giving more information
-    - optionally, the name of a display handler bound in NAME_DISPLAY_HANDLERS"""
+    - optionally, the name of a display handler bound in NAME_DISPLAY_HANDLERS
+      and an edit handler bound in EDIT_HANDLERS."""
     return [T.table[[T.tr[T.td(class_='attr_table_label')[name_text(descr)],
                           T.td(class_='attr_table_value')[linked_value(descr, value, item_dict)]]
                      for descr in fieldnames

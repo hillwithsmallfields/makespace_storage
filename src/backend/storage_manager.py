@@ -32,6 +32,7 @@ storage_manager.add_middleware(
 )
 
 INVENTORY_FIELDS = [
+    ["Location", "The immediately surrounding location of the item.", 'location'],
     ["Manufacturer", "The name of the manufacturer"],
     ["Manufacturer_URL", "This should be the home page of the manufacturer."],
     ["Manufacturer_page", "The title for the manufacturer's page for this equipment"],
@@ -246,6 +247,16 @@ def inventory_contents(location, recursive=False):
 def set_location(location_id, barcode):
     """Set the location of an item."""
     inventory_data().update({'barcode': barcode}, {'location': location_id}, upsert=True)
+
+@storage_manager.get("/locations_for/{typename}")
+def locations_for(typename):
+    """Return the names of locations that a given type of item may be stored in.
+    Uses the 'fits' column of the database, which is a semicolon-separated list of location types."""
+    fits = [loctype.strip() for loctype in (type_attribute(typename, 'fits') or []).split(';')]
+    return {'location_types': fits,
+            'locations': [item['name']
+                          for item in inventory_data().find({})
+                          if item['type'] in fits]}
 
 def by_name(collection):
     """Return a dictionary of a collection's contents, with the names as the keys."""
@@ -670,38 +681,44 @@ def details(item):
             'location': location_string(loc),
             'details': tidy_dictionary(lookup(item))}
 
-def attribute_value(item, attr, local_only=None):
+def type_attribute(typename, attr, typedefs=None):
+    """Return an attribute of a type."""
+    if typedefs is None:
+        typedefs = by_name(types_data())
+    item_type = typedefs[typename]['name']
+    while True:
+        if item_type not in typedefs:
+            return None
+        if (value := typedefs[item_type].get(attr)):
+            return value
+        if not (item_type := typedefs[item_type]['parent']):
+            return None
+
+def item_attribute(item, attr, local_only=None):
     """Return an attribute of an item.
     This may be defined by the item itself, or in its type hierarchy.
     The item may be specified by name or by barcode."""
-    typedefs = by_name(types_data())
     item_dict = lookup(item)
     if attr in item_dict and item_dict[attr]:
         return item_dict[attr]
     if local_only:
         return None
+    typedefs = by_name(types_data())
     if item_dict['type'] in typedefs:
-        item_type = typedefs[item_dict['type']]['name']
-        while True:
-            if item_type not in typedefs:
-                return None
-            if (value := typedefs[item_type].get(attr)):
-                return value
-            if not (item_type := typedefs[item_type]['parent']):
-                break
+        return type_attribute(item_dict['type'], attr, typedefs)
     return None
 
 @storage_manager.get("/attribute/{item}/{attr}")
 def attribute(item, attr):
-    """FastAPI wrapper for `attribute_value`."""
-    return {attr: attribute_value(item, attr)}
+    """FastAPI wrapper for `item_attribute`."""
+    return {attr: item_attribute(item, attr)}
 
 @storage_manager.get("/attributes/{item}/{attrs}")
 def attributes(item, attrs):
-    """FastAPI wrapper for `attribute_value`."""
+    """FastAPI wrapper for `item_attribute`."""
     return {attr: value
             for attr in attrs.split(';')
-            if ((value := attribute_value(item, attr)) is not None)}
+            if ((value := item_attribute(item, attr)) is not None)}
 
 @storage_manager.post("/update_inventory_item")
 async def update_item(request: Request):

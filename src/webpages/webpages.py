@@ -207,7 +207,7 @@ def inventory_type_create_or_edit_form(item_name, get_existing=True):
     return T.div[
         T.form(action="/new_type", method='post')[
             T.table[T.tr[T.td(class_='attr_table_label')[T.label(for_='type_name')["Type name"]],
-                         T.td[T.input(type='text', name='type_name', value=item_name)]],
+                         T.td[T.input(type='text', name='type_name', id='type_name', value=item_name)]],
                     T.tr[T.td(class_='attr_table_label')[T.label(for_='parent_type')["Parent type:"]],
                          T.td[T.select(name='parent_type', id='parent_type')[type_selector()]]]],
         T.button(type='submit')["Create type"]]]
@@ -217,11 +217,13 @@ def stock_link_barcode_to_stock_type_form(item_name, barcode, get_existing=True)
         T.p["""Stock items are known by their stock type name, and not by barcode, """,
             """because there may be multiple barcodes for each stock type.""",
             """This form is to link a new barcode to an existing stock type."""],
-        T.form(action="/new_type", method='post')[
+        T.form(action="/link_stock_type", method='post')[
         T.table[T.tr[T.td[T.label(for_='barcode')["Barcode:"]],
                      T.td[T.input(type='text', name='barcode', value=str(barcode))]],
                 T.tr[T.td[T.label(for_='type_name')["Type name:"]],
-                     T.td[T.select(name='type_name', id='type_name')[type_selector(kind='stock-')]]]],
+                     T.td[T.select(name='type_name', id='type_name')[[T.option["New stock type"]] + type_selector(kind='stock-')]]],
+                T.tr[T.td[T.label(for_='new_stock_type')["New stock type"]],
+                     T.td[T.input(type='text', name='new_stock_type', value="")]]],
         T.button(type='submit')["Link stock type"]]]
 
 @app.route("/item/<item>/new/<hint>")

@@ -21,6 +21,7 @@ storage_manager = FastAPI()
 INVENTORY_BARCODE_BASE = "042000000000"
 INVENTORY_BARCODE_REGEXP = re.compile("^0?42[0-9]{10}$")
 BARCODE_REGEXP = re.compile("^[0-9]{1,13}$")
+DUMMY_BARCODE_BASE = "099000000000"
 
 storage_manager.add_middleware(
     CORSMiddleware,
@@ -154,6 +155,10 @@ def name(barcode):
     """Look up a barcode (or name) and return a name."""
     found = lookup(barcode)
     return {'barcode': found['barcode'], 'name': found['name']}
+
+def next_dummy_barcode():
+    """Return the next dummy barcode."""
+    return int(inventory_data().find({}).sort({'barcode' : -1}).next()['barcode']) + 1
 
 def normalise_barcode(barcode):
     """Return a barcode as a string, based on the given input which
@@ -294,7 +299,7 @@ def location_string(full_loc, sep=", "):
 def convert_string(raw):
     """Convert a string to int or float if possible;
     or JSON if it looks likely."""
-    if raw.startswith('{') and raw.endswith('}'):
+    if isinstance(raw, str) and raw.startswith('{') and raw.endswith('}'):
         try:
             jtext = raw.replace("'", '"')
             return json.loads(jtext)
@@ -443,20 +448,22 @@ def suggested_fields():
 VIRTUAL_BARCODE_ISSUE_BASE = 1000000
 
 @storage_manager.post("/new_inventory")
-def new_inventory_post(request: Request):
+def new_inventory(request: Request):
     item_name = request.query_params['item_name']
-    item_type = request.query_params['item_type']
-    print("in new_inventory_item post with name", item_name, "and item type", item_type)
+    fields = dict(request.query_params.items())
+    if not fields.get('barcode'):
+        fields['barcode'] = next_dummy_barcode()
+    print("new inventory with fields", fields)
     r = inventory_data().update_one({'name': item_name}, # TODO: perhaps? identify it by barcode rather than name
-                                    {'$set': convert_dict_entries(dict(request.query_params.items()))},
+                                    {'$set': convert_dict_entries(fields)},
                                     upsert=True)
     return {'created': "inventory item",
-            'result': r,
+            'result': str(r),
             'item_name': item_name,
-            'item_type': item_type}
+            'item_type': request.query_params['item_type']}
 
 @storage_manager.post("/new_stock")
-def new_stock_post(request: Request):
+def new_stock(request: Request):
     item_name = request.query_params['item_name']
     item_type = request.query_params['item_type']
     print("in new_stock_item post with name", item_name, "and item type", item_type)
@@ -466,12 +473,26 @@ def new_stock_post(request: Request):
             'item_type': item_type}
 
 @storage_manager.post("/new_type")
-def new_type_post(request: Request):
-    item_name = request.query_params['item_name']
+def new_type(request: Request):
+    for k, v in request.query_params.items():
+        print("  got param", k, v)
+    type_name = request.query_params['type_name']
     print("in new_type_item post with name", item_name)
-    return {'created': "inventory item",
-            'item_name': item_name,
-            'item_type': item_type}
+    return {'created': "type",
+            'type': type_name}
+
+@storage_manager.post("/link_stock_type")
+def link_stock_type(request: Request):
+    type_name = request.query_params['type_name']
+    if type_name == "New stock type":
+        type_name = request.query_params['new_stock_type']
+    barcode = request.query_params['barcode']
+    r = stock_types_data().update_one({'barcode': barcode},
+                                      {'$set': {'type': type_name}})
+    return {'linked': "inventory item",
+            'result': str(r),
+            'barcode': barcode,
+            'type': type_name}
 
 def links_for_item(base_url: str, item: dict):
     """Return the API links for an item."""

@@ -1,3 +1,5 @@
-type,locations
-blue paper towel,"{'420000000006': 6, '420000000014': 12}"
-laser wipes,"{'420000000003': 2, '420000000006': 8}"
+name,location,quantity
+blue paper towel,420000000006,6
+blue paper towel,420000000014,12
+laser wipes,420000000003,2
+laser wipes,420000000006,8

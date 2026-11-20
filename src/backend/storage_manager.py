@@ -19,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 storage_manager = FastAPI()
 
 INVENTORY_BARCODE_BASE = "042000000000"
-INVENTORY_BARCODE_REGEXP = re.compile("^042[0-9]{10}$")
+INVENTORY_BARCODE_REGEXP = re.compile("^0?42[0-9]{10}$")
 BARCODE_REGEXP = re.compile("^[0-9]{1,13}$")
 
 storage_manager.add_middleware(
@@ -47,6 +47,7 @@ INVENTORY_FIELDS = [
     ["Owners_email", "The email of the owners (without 'mailto:')"],
     ["Grid location", "The metre square coordinates as letters (across) and numbers (away)."],
     ["Supplies", "Semicolon-separated list of stock type names of supplies.", 'supplies'],
+    ["barcode", "The barcode of the item."],
 ]
 
 STOCK_FIELDS = [
@@ -92,12 +93,12 @@ def types_data():
 def stock_types_data():
     """Get the stock types collection from the database.
 
-    Each row must define a 'barcode' and a 'type'.
+    Each row must define a 'barcode' and a 'name'.
     It may also define a 'description'."""
     global _stock_types
     if _stock_types is None:
         _stock_types = _ensure_database()['stock_types']
-        _stock_types.create_index('name', unique=True) # ignored if it already exists
+        _stock.create_index('name', unique=True) # ignored if it already exists
     return _stock_types
 
 def inventory_data():
@@ -128,7 +129,8 @@ def stock_data():
 
     Each row must define:
     - type (which should match a type in the stock_types_data collection)
-    - locations (as a dictionary of location barcode to quantity in that location)
+    - location (as a barcode)
+    - quantity
     """
     global _stock
     if _stock is None:
@@ -146,6 +148,12 @@ def name_to_id(name):
 def id_to_name(barcode):
     """Return the name of an item with the given barcode."""
     return inventory_data().find_one({'barcode': barcode})['name']
+
+@storage_manager.get("/name/{barcode}")
+def name(barcode):
+    """Look up a barcode (or name) and return a name."""
+    found = lookup(barcode)
+    return {'barcode': found['barcode'], 'name': found['name']}
 
 def normalise_barcode(barcode):
     """Return a barcode as a string, based on the given input which
@@ -196,7 +204,7 @@ def lookup(name_or_barcode):
         if found:
             return mark_kind(found, 'inventory' if is_inv else 'stock')
         return {'kind': 'new_inventory' if is_inv else 'new_stock',
-                'barcode': barcode}
+                'barcode': int(barcode)}
     if (item := inventory_data().find_one({'name': name_or_barcode})):
         return mark_kind(item, 'inventory')
     if (item := stock_data().find_one({'name': name_or_barcode})):
@@ -265,7 +273,6 @@ def full_location(item):
     """Return the full hierarchical location data for an item.
     The item may be given as a barcode or a dictionary."""
     item = lookup(item)
-    print("getting full location for", item)
     match item['kind']:
         case 'inventory':
             return fill_out_location(item['location'])
@@ -311,9 +318,9 @@ def load_table(collection, text, key='name'):
     count = 0
     try:
         for row in csv.DictReader(io.StringIO(text)):
-            collection.update_one({'name': row[key]},
-                                  {'$set': convert_dict_entries(row)},
-                                  upsert=True)
+            res = collection.update_one({key: row[key]},
+                                        {'$set': convert_dict_entries(row)},
+                                        upsert=True)
             count += 1
     except Exception as e:
         print("problem while uploading a data table:", e)
@@ -371,7 +378,7 @@ async def load_stock_types(request: Request):
 @storage_manager.get("/dump-stock-types")
 async def dump_stock_types_data():
     """Return the stock database types as CSV text."""
-    return dump_table(stock_types_data(), left_keys=['name', 'parent'])
+    return dump_table(stock_types_data(), left_keys=['barcode', 'name'])
 
 @storage_manager.post("/load-inventory")
 async def load_inventory(request: Request):
@@ -386,7 +393,7 @@ async def dump_inventory():
 @storage_manager.post("/load-stock")
 async def load_stock(request: Request):
     """Load data into the database stock from a CSV POST body."""
-    return load_table(stock_data(), (await request.body()).decode("utf-8"), key='type')
+    return load_table(stock_data(), (await request.body()).decode("utf-8"))
 
 @storage_manager.get("/dump-stock")
 async def dump_stock():
@@ -397,9 +404,9 @@ async def dump_stock():
 def search(pattern):
     """Look for matches for a pattern."""
     return {'inventory': [tidy_dictionary(m) for m in inventory_data().find({'name': {'$regex': pattern}})],
-            'stock': [tidy_dictionary(m) for m in stock_data().find({'type': {'$regex': pattern}})],
+            'stock': [tidy_dictionary(m) for m in stock_data().find({'name': {'$regex': pattern}})],
             'types': [tidy_dictionary(m) for m in types_data().find({'name': {'$regex': pattern}})],
-            'stock_types': [tidy_dictionary(m) for m in stock_types_data().find({'type': {'$regex': pattern}})]}
+            'stock_types': [tidy_dictionary(m) for m in stock_types_data().find({'name': {'$regex': pattern}})]}
 
 @storage_manager.get("/")
 async def root():
@@ -419,8 +426,8 @@ def inventory_types():
 @storage_manager.get("/stock-types")
 def stock_types():
     """Return all the stock types."""
-    return {'types': sorted(set([t['type'] for t in stock_types_data().find({})]
-                                + [t['type'] for t in stock_data().find({})]))}
+    return {'types': sorted(set([t['name'] for t in stock_types_data().find({})]
+                                + [t['name'] for t in stock_data().find({})]))}
 
 @storage_manager.get("/top-level-types")
 def top_level_types():
@@ -529,20 +536,28 @@ async def where(item, full=False):
         case _:
             return {}
 
-def stock_contents(location):
+def stock_contents_at_location(location):
     """Return what is stocked at this location."""
-    return [loc for loc in stock_data().find({
-        f"locations.{str(lookup(location)['barcode'])}": {"$gt": 0}})]
+    return [contents for contents in stock_data().find({'location': lookup(location)['barcode']})]
+
+def locations_of_stock(stock):
+    """Return the locations of a stock type."""
+    return [loc for loc in stock_data().find({'name': stock})]
 
 @storage_manager.get("/stocked/{location}")
 async def stocked(location):
-    return stock_contents(location)
+    return stock_contents_at_location(location)
+
+@storage_manager.get("/stock/{stocktype}")
+async def stock_locations(stocktype):
+    return locations_of_stock(stocktype)
 
 @storage_manager.get("/levels/{item}")
 def stock_levels(item):
     """Return the stock levels of an item."""
-    return {lookup('0' + k)['name']: v
-            for k, v in lookup(item)['locations'].items()}
+    for s in stock_data().find({'name': item}):
+        print("found", s)
+    return {s['location']: s['quantity'] for s in stock_data().find({'name': item})}
 
 @storage_manager.post("/update_stock")
 def update_stock(request: Request):
@@ -556,10 +571,10 @@ def update_stock(request: Request):
     # TODO: mongo stuff for this
     data = stock_data()
     # if action == '=':
-    #     data.update_one({'type': stock_item,
+    #     data.update_one({'name': stock_item,
     #                      f"locations.{location}"}, {'$set': delta})
     # else:
-    #     data.update_one({'type': stock_item,
+    #     data.update_one({'name': stock_item,
     #                      f"locations.{location}"}, {'$inc': delta})
     return {'placeholder': f"updated {stock_item} locations.{location}"}
 
@@ -683,7 +698,7 @@ async def list_contents(location, recursive:bool = False):
                           for x in inventory_contents(location,
                                                       recursive)],
             'stock': [tidy_dictionary(x)
-                      for x in stock_contents(location)]}
+                      for x in stock_contents_at_location(location)]}
 
 @storage_manager.get("/map")
 async def map_contents(location: int=0, items=None):

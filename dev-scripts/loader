@@ -1,6 +1,10 @@
 #!/bin/bash
 
+echo loading types
 curl http://127.0.0.1:8000/load-types -X POST -H "Content-Type: text/csv" --data-binary @dev-data/initial-types.csv
+echo loading stock types
 curl http://127.0.0.1:8000/load-stock-types -X POST -H "Content-Type: text/csv" --data-binary @dev-data/initial-stock-types.csv
+echo loading inventory
 curl http://127.0.0.1:8000/load-inventory -X POST -H "Content-Type: text/csv" --data-binary @dev-data/initial-inventory.csv
+echo loading stock
 curl http://127.0.0.1:8000/load-stock -X POST -H "Content-Type: text/csv" --data-binary @dev-data/initial-stock.csv

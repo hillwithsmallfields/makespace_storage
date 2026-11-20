@@ -232,7 +232,7 @@ def create_something_page(item, hint):
         item = ""
     return titled_page(
         "Create item",
-        T.div[T.p['"', item or str(barcode), '" was not found in any of our collections.'],
+        T.div[T.p[f'"{item or str(barcode)}" (type {type(barcode)} was not found in any of our collections.'],
               T.p["This is your chance to add it to the appropriate collection."],
               switchable_panel(switcher_id='creator_switcher',
                                panels={'inventory': inventory_create_or_edit_form(item, barcode, False),
@@ -289,14 +289,14 @@ def add_related_types(item, page):
 def search_results_or_create(item, item_fetch_result):
     """Produce a page for when an item was not found.
     List ambiguous results, or offer to create an item."""
+
     search_results = get_json("/search", params={'pattern': item})
     page = [T.h1["No exact match"],
             T.p[f'There was no exact match for "{item}".']]
     if any(search_results.values()):
         page.append([T.p["The following partial matches were found:"],
                      [[[T.h2[group.title()],
-                        T.ul[[T.li[T.a(href=f"/item/{pm['name']}")[pm['name']]]
-                              for pm in matches]]]
+                        T.ul[[T.li[T.a(href=f"/item/{pm['name']}")[pm['name']]] for pm in matches]]]
                        for group, matches in search_results.items()
                        if matches]]])
     page.append([T.p["If none of those is what you meant, you can now ",
@@ -358,10 +358,14 @@ def consume():
                        T.p["Consumption record will go here"])
 
 def add_stock_table(page, item):
+    # page.append(T.p[str(get_json(f"/levels/{item}"))])
     page.append(T.table[
         T.tr[T.th["Location"], T.th["Quantity"], T.th["Adjust by"]],
         [[T.tr[
-            T.td(class_="stock_item attr_table_label")[T.a(href=name)[name]],
+            T.td(class_="stock_item attr_table_label")[
+                T.a(href=f"/stock/{location}")[
+                    get_json(f"/name/{location}")['name']
+                ]],
             T.td[str(count)],
             T.td[T.form(action="/update_stock", method='post')[
                 T.input(type='text', name='delta', value="1"),
@@ -370,10 +374,10 @@ def add_stock_table(page, item):
                 T.input(type='submit', name='action', value='+'),
                 T.input(type='hidden', name='referring_page', value=request.url),
                 T.input(type='hidden', name='stock_item', value=item),
-                T.input(type='hidden', name='location', value=name),
+                T.input(type='hidden', name='location', value=location),
                 T.input(type='hidden', name='existing', value=str(count)),
             ]]]
-          for name, count in get_json(f"/levels/{item}").items()]]])
+          for location, count in get_json(f"/levels/{item}").items()]]])
 
 def add_details_panels(page, item_name, kind='inventory'):
     extra_fields = get_json("/suggested_fields")[kind]
@@ -398,6 +402,13 @@ def add_supplies_details(page, supplies):
         T.h2["Supplies"],
         T.ul[[T.li[k, str(v)]
               for k, v in supplies.items()]]])
+
+@app.route("/stock/<stocktype>")
+def stock(stocktype):
+    """Return a page about a type of stock."""
+    page = [T.div[T.h1["Stock: ", stocktype]]]
+    add_stock_table(page, stocktype)
+    return titled_page(stocktype, page)
 
 @app.route("/<item>")
 def item_home(item=None):
@@ -426,9 +437,7 @@ def item_home(item=None):
     if res['kind'] == 'new_stock':
         return redirect(f"/item/{res['barcode']}/new/stockcode")
     if res['kind'] == 'stock':
-        page = [T.div[T.h1["Stock: ", item]]]
-        add_stock_table(page, item)
-        return titled_page(item, page)
+        return stock(item)
     details = get_json(f"/details/{item}")
     equipment_class = get_attribute(item, 'equipment class', default=None)
     types = details['types']
@@ -437,7 +446,6 @@ def item_home(item=None):
     links = res['links']
     contents = get_json(f"/contents/{item}")
     inventory = contents['inventory']
-    stock = contents['stock']
     location = details['nest']
     title = f"{item_name} ({item_type})"
     summary = [item_name, " is a ", res['kind'], " item ", summarise_location(location)]
@@ -456,11 +464,12 @@ def item_home(item=None):
                       T.ul[[T.li[T.span(class_="type")[T.a(href=f"/{t}/type")[t]]] for t in types]]])
     if inventory:
         page.append(T.div[T.h2["Inventory contents"],
-                          T.ul[[T.li[T.span(class_="inv_item")[T.a(href=f"/{dweller['name']}")[dweller['name']]]]
+                          T.ul[[T.li[T.span(class_="inv_item")[T.a(href=f"/item/{dweller['name']}")[dweller['name']]]]
                                 for dweller in inventory]]])
-    if stock:
+    if (stock := contents['stock']):
         page.append(T.div[T.h2["Stock contents"],
-                          T.ul[[T.li[T.span(class_="stock_item")[T.a(href=f"/{dweller['name']}")[dweller['name']]]]
+                          T.table[[T.tr[T.td(class_="stock_item")[T.a(href=f"/stock/{dweller['name']}")[dweller['name']]],
+                                        T.td[str(dweller['quantity'])]]
                                 for dweller in stock]]])
     return titled_page(title, page)
 

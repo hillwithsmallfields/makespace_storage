@@ -272,19 +272,22 @@ def get_subtypes(ty):
 def get_parent_types(ty):
     return [pt for pt in get_json(f"/parent_types/{ty}") if pt != ty]
 
-def unnumbered_list(elements, path_prefix=""):
-    return T.ul[[T.li[T.a(href=path_prefix+elt)[elt]] for elt in elements]]
+def unnumbered_list(elements, path_prefix="", sort_by=None):
+    return T.ul[[T.li[T.a(href=path_prefix+elt)[elt]] for elt in
+                 (sorted(elements, key=sort_by)
+                  if sort_by is not None
+                  else elements)]]
 
 def add_related_types(item, page):
     if (parent_types := get_parent_types(item)):
         print("parent types are", parent_types)
         page.append(T.div(class_='parent_types')[
-            T.h2["Parent types"],
+            T.h2[f'Parent types of "{item}"'],
             unnumbered_list(parent_types, path_prefix="/")])
     if (subtypes := get_subtypes(item)):
         page.append(T.div(class_='subtypes')[
-            T.h2["Subtypes"],
-            unnumbered_list(subtypes)])
+            T.h2[f'Subtypes of "{item}"'],
+            unnumbered_list(subtypes, sort_by=lambda x: x)])
 
 def search_results_or_create(item, item_fetch_result):
     """Produce a page for when an item was not found.
@@ -425,10 +428,10 @@ def item_home(item=None):
 
         # return titled_page("checking", T.p[res['links']['new'].replace(API, WEB)])
     if  res['kind'] == 'type':
-        title = f"Type {item}"
+        title = f'Type "{item}"'
         page = [T.div(class_='types')
                 [T.h1[title],
-                 T.h2["Items of type ", item],
+                 T.h2[f'Items of type "{item}"'],
                  list_for_type(item)]]
         add_related_types(item, page)
         return titled_page(title, page)
@@ -477,15 +480,15 @@ def item_home(item=None):
 def type_details(typename):
     page = [T.h1[f'Details of type "{typename}"']]
     add_related_types(typename, page)
-    page.append([T.h2["Items of type ", typename],
+    page.append([T.h2[f'Items of type "{typename}"'],
                  list_for_type(typename)])
-    return titled_page("Type details", T.div[page])
+    return titled_page(f"Type details for {typename}", T.div[page])
 
 def list_for_type(typename):
     """Return the expressionive structure listing the things of the given typename."""
     things = get_json(f"/list_type/{typename}")
     return (T.ul[[T.li[T.a(href=f"/{thing['name']}")[thing['name']]]
-                  for thing in things]]
+                  for thing in sorted(things, key=lambda thing: thing['name'])]]
             if things
             else T.p["No items found."])
 

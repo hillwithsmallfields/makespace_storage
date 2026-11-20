@@ -98,7 +98,7 @@ def stock_types_data():
     global _stock_types
     if _stock_types is None:
         _stock_types = _ensure_database()['stock_types']
-        _stock.create_index('name', unique=True) # ignored if it already exists
+        _stock_types.create_index('name', unique=True) # ignored if it already exists
     return _stock_types
 
 def inventory_data():
@@ -443,19 +443,22 @@ def suggested_fields():
 VIRTUAL_BARCODE_ISSUE_BASE = 1000000
 
 @storage_manager.post("/new_inventory")
-def new_inventory_post(
-        item_name, item_type,
-):
+def new_inventory_post(request: Request):
+    item_name = request.query_params['item_name']
+    item_type = request.query_params['item_type']
     print("in new_inventory_item post with name", item_name, "and item type", item_type)
-    # TODO: add the item to the database
+    r = inventory_data().update_one({'name': item_name}, # TODO: perhaps? identify it by barcode rather than name
+                                    {'$set': convert_dict_entries(dict(request.query_params.items()))},
+                                    upsert=True)
     return {'created': "inventory item",
+            'result': r,
             'item_name': item_name,
             'item_type': item_type}
 
 @storage_manager.post("/new_stock")
-def new_stock_post(
-        item_name, item_type,
-):
+def new_stock_post(request: Request):
+    item_name = request.query_params['item_name']
+    item_type = request.query_params['item_type']
     print("in new_stock_item post with name", item_name, "and item type", item_type)
     # TODO: add the item to the database
     return {'created': "inventory item",
@@ -463,11 +466,9 @@ def new_stock_post(
             'item_type': item_type}
 
 @storage_manager.post("/new_type")
-def new_type_post(
-        item_name, item_type,
-):
-    print("in new_type_item post with name", item_name, "and item type", item_type)
-    # TODO: add the item to the database
+def new_type_post(request: Request):
+    item_name = request.query_params['item_name']
+    print("in new_type_item post with name", item_name)
     return {'created': "inventory item",
             'item_name': item_name,
             'item_type': item_type}
@@ -495,7 +496,7 @@ async def item_home(item, request: Request):
     If the item does not exist, return a result to help create it."""
     print("in /item for", item)
     item_dict = lookup(item)
-    return ({'links': {'new': f"{request.url}/new"},
+    return ({'links': {'new': f"{request.url}/new/unknown"},
              'kind': 'unknown'}
             if item_dict is None
             else ({'name': item_dict['name'],
@@ -683,11 +684,10 @@ def attributes(item, attrs):
 
 @storage_manager.post("/update_inventory_item")
 async def update_item(request: Request):
-    inv = inventory_data()
     item_name = request.query_params['item_name']
-    inv.update_one({'name': item_name}, # TODO: identify it by barcode rather than name
-                   {'$set': dict(request.query_params.items())},
-                   upsert=True)
+    inventory_data().update_one({'name': item_name}, # TODO: identify it by barcode rather than name
+                                {'$set': dict(request.query_params.items())},
+                                upsert=True)
     return {'updated': item_name}
 
 @storage_manager.get("/contents/{location}")

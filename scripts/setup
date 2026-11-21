@@ -1,0 +1,17 @@
+#!/bin/bash
+
+SCRIPTPATH="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
+
+APIVENV=$SCRIPTPATH/../api-server.venv
+
+python3 -m venv $APIVENV
+source $APIVENV/bin/activate
+pip install -r requirements-api.txt
+deactivate
+
+WEBVENV=$SCRIPTPATH/../web-server.venv
+
+python3 -m venv $WEBVENV
+source $WEBVENV/bin/activate
+pip install -r requirements-web.txt
+deactivate

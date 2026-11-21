@@ -1,0 +1,4 @@
+flask
+flask-cors
+requests
+expressionive>=0.2.0

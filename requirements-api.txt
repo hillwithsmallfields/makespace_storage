@@ -1,0 +1,5 @@
+uv
+fastapi[standard]
+pymongo
+python-decouple
+requests

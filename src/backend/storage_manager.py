@@ -686,6 +686,8 @@ def details(item):
 
 def type_attribute(typename, attr, typedefs=None):
     """Return an attribute of a type."""
+    if typename is None:
+        print("type_attribute of None")
     if typedefs is None:
         typedefs = by_name(types_data())
     item_type = typedefs[typename]['name']

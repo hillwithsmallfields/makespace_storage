@@ -146,7 +146,7 @@ def location_value(descr, value, item_dict):
     # the edit form.
     return T.a(href=item_dict.get(name+"_URL"))[value]
 
-def edit_supplies(descr, value, item_dict):
+def edit_supplies(descr, item_dict):
     # For now, it's the same result as not having an edit handler, but
     # I'd like it to put in multiple <select>s plus a way of adding
     # and deleting entries.  Or perhaps a list of checkboxes and a way
@@ -155,12 +155,12 @@ def edit_supplies(descr, value, item_dict):
                    name=(name := just_name(descr)),
                    value=valuesdict.get(name, ""))
 
-def edit_location(descr, value, item_dict):
+def edit_location(descr, item_dict):
     """Make an edit form part for the location of an item.
     Only the locations in which that type of item can be stored are presented."""
     name = just_name(descr)
-    value = valuesdict.get(name, "")
-    item_type = valuesdict.get('type')
+    value = item_dict.get(name, "")
+    item_type = item_dict.get('type')
     return T.select(name=name, id=name)[
         [T.option(value=opt,
                   # TODO: can I give selected=False to get it not selected?
@@ -188,15 +188,15 @@ def linked_value(descr, value, item_dict):
                   if name+"_URL" in item_dict
                   else value))
 
-def extra_form_fields(fieldnames, valuesdict):
+def extra_form_fields(fieldnames, values_dict):
     """Return a table of form fields for setting details of an item.
     See `extra_display_fields` for details of what can be in a descriptor."""
     return [[T.tr[T.td(class_='attr_table_label')[name_text(descr)],
-                  (EDIT_HANDLERS[descr[2]](descr, value, item_dict)
+                  (EDIT_HANDLERS[descr[2]](descr, values_dict)
                    if isinstance(descr, list) and len(descr) >= 3
                    else T.td[T.input(type='text',
                                      name=(name := just_name(descr)),
-                                     value=valuesdict.get(name, ""))])]
+                                     value=values_dict.get(name, ""))])]
             for descr in fieldnames]]
 
 def extra_display_fields(fieldnames, item_dict):

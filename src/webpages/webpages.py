@@ -12,7 +12,7 @@ from flask import Flask, request, redirect
 
 from expressionive.expressionive import htmltags as T
 import expressionive.exprpages as exprpages
-from expressionive.expridioms import switchable_panel
+from expressionive.expridioms import switchable_panel, wrap_box
 
 API = "http://127.0.0.1:8000"
 WEB = "http://127.0.0.1:5000"
@@ -538,22 +538,24 @@ def item_home(item=None):
     summary.append(".")
     page = [T.div[T.h1(class_=f"{equipment_class}_equipment" or "other")[title],
                   T.p[summary]]]
-    if (picture := get_attribute(item, 'picture', local_only=False)):
-        page.append(T.img(src=picture))
-    if (supplies := get_json(f"/supplies/{item_name}")):
-        add_supplies_details(page, supplies)
-    add_details_panels(page, item_name, res['kind'])
-    page.append(T.div[T.h2["Types"],
-                      T.ul[[T.li[T.span(class_="type")[T.a(href=f"/{t}/type")[t]]] for t in types]]])
+    panels = []
     if inventory:
-        page.append(T.div[T.h2["Inventory contents"],
+        panels.append(T.div[T.h2["Inventory contents"],
                           T.ul[[T.li[T.span(class_="inv_item")[T.a(href=f"/item/{dweller['name']}")[dweller['name']]]]
                                 for dweller in inventory]]])
+    if (picture := get_attribute(item, 'picture', local_only=False)):
+        panels.append(T.img(src=picture))
+    if (supplies := get_json(f"/supplies/{item_name}")):
+        add_supplies_details(panels, supplies)
+    panels.append(T.div[T.h2["Types"],
+                      T.ul[[T.li[T.span(class_="type")[T.a(href=f"/{t}/type")[t]]] for t in types]]])
+    add_details_panels(panels, item_name, res['kind'])
     if (stock := contents['stock']):
-        page.append(T.div[T.h2["Stock contents"],
+        panels.append(T.div[T.h2["Stock contents"],
                           T.table[[T.tr[T.td(class_="stock_item")[T.a(href=f"/stock/{dweller['name']}")[dweller['name']]],
                                         T.td[str(dweller['quantity'])]]
                                 for dweller in stock]]])
+    page.append(wrap_box(*panels))
     return titled_page(title, page)
 
 @app.route("/<typename>/type")

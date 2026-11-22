@@ -53,19 +53,19 @@ The supplier's page for this type of equipment.
 ## Date_acquired
 
 The date we acquired this equipment, as an
-[https://en.wikipedia.org/wiki/ISO_8601#Calendar_dates](ISOdate).
+[ISOdate](https://en.wikipedia.org/wiki/ISO_8601#Calendar_dates).
 
 ## Date_disposed
 
 The date we got rid of this equipment, as an
-[https://en.wikipedia.org/wiki/ISO_8601#Calendar_dates](ISOdate).
+[ISOdate](https://en.wikipedia.org/wiki/ISO_8601#Calendar_dates).
 Later versions of the software may option hide from the listings items
 which have been disposed at a past date.
 
 ## PAT tested
 
 The date this equipment was last PAT tested, as an
-[https://en.wikipedia.org/wiki/ISO_8601#Calendar_dates](ISOdate).
+[ISOdate](https://en.wikipedia.org/wiki/ISO_8601#Calendar_dates).
 
 ## Picture
 

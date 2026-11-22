@@ -32,7 +32,7 @@ storage_manager.add_middleware(
 )
 
 INVENTORY_FIELDS = [
-    ["Location", "The immediately surrounding location of the item.", 'location'],
+    ["location", "The immediately surrounding location of the item.", 'location'],
     ["Manufacturer", "The name of the manufacturer"],
     ["Manufacturer_URL", "This should be the home page of the manufacturer."],
     ["Manufacturer_page", "The title for the manufacturer's page for this equipment"],

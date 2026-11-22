@@ -19,6 +19,8 @@ WEB = "http://127.0.0.1:5000"
 
 app = Flask("storage")
 
+FIELDS_REFERENCE = "https://github.com/hillwithsmallfields/makespace_storage/blob/trunk/doc/reference/fields.md"
+
 # CORS(app, origins=[WEB+"/*", API+"/*"])
 
 # CORS(app, origins=["*"])
@@ -124,11 +126,22 @@ def just_name(name):
     The second item of the list will be the hover text."""
     return (name if isinstance(name, str) else name[0])
 
-def name_text(name):
-    """Return the expressionive structure to display a name."""
-    return (name.replace('_', ' ')
+def name_text(name, reference=None):
+    """Return the expressionive structure to display a name.
+
+    If the name is a list of the actual name and an explanation, make
+    a hover text from the explanation.
+
+    If a reference page is given, make a link to an anchor for the
+    name in that page."""
+
+    def polite_form(name, reference=None):
+        text = name.replace('_', ' ')
+        return T.a(href=f"{reference}#{name.lower()}")[text] if reference else text
+
+    return (polite_form(name, reference)
             if isinstance(name, str)
-            else T.span(class_='name')[name[0].replace('_', ' '),
+            else T.span(class_='name')[polite_form(name[0], reference),
                                        T.span(class_='explanation')[name[1]]])
 
 def just_names(names):
@@ -144,7 +157,7 @@ def location_value(descr, value, item_dict):
     # but I'd like it to have a hover text giving the full location.
     # But really, it's got a handler because I want it to have one for
     # the edit form.
-    return T.a(href=item_dict.get(name+"_URL"))[value]
+    return T.a(href=item_dict.get(just_name(descr)+"_URL"))[value]
 
 def edit_supplies(descr, item_dict):
     # For now, it's the same result as not having an edit handler, but
@@ -191,7 +204,7 @@ def linked_value(descr, value, item_dict):
 def extra_form_fields(fieldnames, values_dict):
     """Return a table of form fields for setting details of an item.
     See `extra_display_fields` for details of what can be in a descriptor."""
-    return [[T.tr[T.td(class_='attr_table_label')[name_text(descr)],
+    return [[T.tr[T.td(class_='attr_table_label')[name_text(descr, FIELDS_REFERENCE)],
                   (EDIT_HANDLERS[descr[2]](descr, values_dict)
                    if isinstance(descr, list) and len(descr) >= 3
                    else T.td[T.input(type='text',
@@ -206,7 +219,7 @@ def extra_display_fields(fieldnames, item_dict):
     - a help string giving more information
     - optionally, the name of a display handler bound in NAME_DISPLAY_HANDLERS
       and an edit handler bound in EDIT_HANDLERS."""
-    return [T.table[[T.tr[T.td(class_='attr_table_label')[name_text(descr)],
+    return [T.table[[T.tr[T.td(class_='attr_table_label')[name_text(descr, FIELDS_REFERENCE)],
                           T.td(class_='attr_table_value')[linked_value(descr, value, item_dict)]]
                      for descr in fieldnames
                      if ((not (name := just_name(descr)).endswith("_URL"))

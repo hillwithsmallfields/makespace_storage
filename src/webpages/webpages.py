@@ -137,7 +137,7 @@ def name_text(name, reference=None):
 
     def polite_form(name, reference=None):
         text = name.replace('_', ' ')
-        return T.a(href=f"{reference}#{name.lower()}")[text] if reference else text
+        return T.a(href=f"{reference}#{name.lower()}", target='_blank')[text] if reference else text
 
     return (polite_form(name, reference)
             if isinstance(name, str)

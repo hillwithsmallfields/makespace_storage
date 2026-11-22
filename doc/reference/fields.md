@@ -17,21 +17,35 @@ The name of the item.  This must be unique.
 
 The type of the item.  This should be the same as an entry in the `type` column of the types collection.
 
+## location
+
+The immediately surrounding location of the item.
+
+Locations are also items, which have locations, so they are nested,
+and the software uses this to make a full description: for example,
+something could be in a box on a shelf in a stack of shelves in a room
+in a building.
+
+The location field of an item should be the barcode of the location.
+
+Items with a location barcoded as `0` are top-level locations, that
+is, buildings.
+
 ## Manufacturer
 
-The name of the manufacturer
+The name of the manufacturer.
 
 ## Manufacturer_URL
 
-This should be the home page of the manufacturer.
+The URL of the home page of the manufacturer.
 
 ## Manufacturer_page
 
-The title for the manufacturer's page for this equipment
+The title for the manufacturer's page for this equipment.
 
 ## Manufacturer_page_URL
 
-This should be the manufacturer's page for this equipment.
+The URL of the manufacturer's page for this equipment.
 
 ## Supplier
 
@@ -39,8 +53,8 @@ The name of the company we bought this item from.
 
 ## Supplier_URL
 
-The supplier's home page (for their company as a whole, not for this
-specific piece of equipment).
+The supplier's home page URL (for their company as a whole, not for
+this specific piece of equipment).
 
 ## Supplier_page
 
@@ -48,7 +62,7 @@ The title for the page for this equipment at the company we bought it from.
 
 ## Supplier_page_URL
 
-The supplier's page for this type of equipment.
+The supplier's page URL for this type of equipment.
 
 ## Date_acquired
 
@@ -77,9 +91,9 @@ The URL of a page in our training web site.
 
 ## Owners_email
 
-The email of the owners (without the `mailto:`)
+The email of the owners (without the `mailto:`).
 
-## Grid location
+## Grid_location
 
 The metre square coordinates as letters (across or X coordinate) and
 numbers (away or Y coordinate).

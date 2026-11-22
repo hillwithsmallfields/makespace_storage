@@ -39,7 +39,8 @@ The name of the company we bought this item from.
 
 ## Supplier_URL
 
-The supplier's home page.
+The supplier's home page (for their company as a whole, not for this
+specific piece of equipment).
 
 ## Supplier_page
 
@@ -51,17 +52,20 @@ The supplier's page for this type of equipment.
 
 ## Date_acquired
 
-The date we acquired this equipment, as an ISOdate.
+The date we acquired this equipment, as an
+[https://en.wikipedia.org/wiki/ISO_8601#Calendar_dates](ISOdate).
 
 ## Date_disposed
 
-The date we got rid of this equipment, as an ISOdate.  Later versions
-of the software may option hide from the listinga items which have
-been disposed at a past date.
+The date we got rid of this equipment, as an
+[https://en.wikipedia.org/wiki/ISO_8601#Calendar_dates](ISOdate).
+Later versions of the software may option hide from the listings items
+which have been disposed at a past date.
 
 ## PAT tested
 
-The date this equipment was last PAT tested.
+The date this equipment was last PAT tested, as an
+[https://en.wikipedia.org/wiki/ISO_8601#Calendar_dates](ISOdate).
 
 ## Picture
 
@@ -73,13 +77,40 @@ The URL of a page in our training web site.
 
 ## Owners_email
 
-The email of the owners (without 'mailto:')
+The email of the owners (without the `mailto:`)
 
 ## Grid location
 
-The metre square coordinates as letters (across) and numbers (away).
+The metre square coordinates as letters (across or X coordinate) and
+numbers (away or Y coordinate).
+
+As is common in graphs and charts, the coordinate origin (A0) is at
+the near left corner of the building as seen looking in from the main
+entrance.  Across coordinates beyond `Z` are written as `AA`, `AB`,
+etc, as in spreadsheets.
+
+A vertical coordinate may follow, to give which floor the item is on.
+To mark this as separate from the Y coordinate (which is digits) this
+is a letter; this also avoids dispute about floor numbering.
+Conveniently, the initial letters of these floor names are in
+alphabetical order:
+
+ - Basement
+ - Ground
+ - Lower
+ - Middle
+ - Upper
+
+This may be followed by a level number, for example to indicate which
+of a stack of shelves is referred to.  For this, the bottom shelf is
+numbered `1`, leaving `0` available to indicate that something is
+stored on the floor under the shelves.
 
 ## Supplies
 
-Semicolon-separated list of stock type names of supplies.
+Semicolon-separated list of stock type names of supplies.  Whitespace
+around the semicolons is stripped.
 
+The barcodes of stock items are mapped onto the stock type names by a
+separate collection in the database, as there may be equivalent stock
+with different barcodes from different suppliers.

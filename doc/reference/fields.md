@@ -31,6 +31,17 @@ The location field of an item should be the barcode of the location.
 Items with a location barcoded as `0` are top-level locations, that
 is, buildings.
 
+## fixed
+
+A non-empty `fixed` field indicates that no `Move` option should be
+offered for the item.
+
+## preposition
+
+The preposition to use to say that this is the container for
+something.  For example, for a box or a room, it will be `in` but for
+a shelf it will be `on`.
+
 ## Manufacturer
 
 The name of the manufacturer.

@@ -152,14 +152,25 @@ def supplies_value(descr, value, item_dict):
     return [T.a(href=f"/item/{si}")[si]
             for si in [s.strip() for s in value.split(';')]]
 
+def item_name(item):
+    return get_json(f"/attribute/{item}/name")['name']
+
 def location_value(descr, value, item_dict):
     # For now, it's the same result as not having a display handler,
     # but I'd like it to have a hover text giving the full location.
     # But really, it's got a handler because I want it to have one for
     # the edit form.
+    location_name = item_name(value)
+    return T.a(href=location_name)[location_name]
+
+def type_value(descr, value, item_dict):
+    # For now, it's the same result as not having a display handler,
+    # but I'd like it to have a hover text giving the full hierarchical type.
+    # But really, it's got a handler because I want it to have one for
+    # the edit form.
     return T.a(href=item_dict.get(just_name(descr)+"_URL"))[value]
 
-def edit_supplies(descr, item_dict):
+def edit_supplies(descr, value, item_dict):
     # For now, it's the same result as not having an edit handler, but
     # I'd like it to put in multiple <select>s plus a way of adding
     # and deleting entries.  Or perhaps a list of checkboxes and a way
@@ -168,27 +179,42 @@ def edit_supplies(descr, item_dict):
                    name=(name := just_name(descr)),
                    value=item_dict.get(name, ""))
 
-def edit_location(descr, item_dict):
+def edit_location(descr, value, item_dict):
     """Make an edit form part for the location of an item.
     Only the locations in which that type of item can be stored are presented."""
-    name = just_name(descr)
-    value = item_dict.get(name, "")
+    field_name = just_name(descr) # for example, "location"
+    name = item_dict['name'] # just_name(descr)
+    value = item_dict.get(just_name(descr), "")
     item_type = item_dict.get('type')
-    return T.select(name=name, id=name)[
-        [T.option(value=opt,
-                  # TODO: can I give selected=False to get it not selected?
-                  # I may have to not supply it at all in those cases
-                  selected=(value==opt))[opt]
-         for opt in get_json(f"/locations_for/{item_type}")['locations']]]
+    old_location_name = item_name(value)
+    # old_location_name = value
+    return (T.a(href=f"{FIELDS_REFERENCE}#fixed", target='_blank')["This item is not movable"]
+            if get_json(f"/attribute/{name}/fixed")['fixed']
+            else (T.select(name=name, id=name)[
+                    [T.option(value=opt,
+                              # I have to not supply 'selected' at all, as selected=False doesn't work
+                              **({'selected': 'true'} if old_location_name==opt else {}))[opt]
+                     for opt in get_json(f"/locations_for/{item_type}")['locations']]]))
+
+def edit_type(descr, value, item_dict):
+    # For now, it's the same result as not having an edit handler, but
+    # I'd like it to put in multiple <select>s plus a way of adding
+    # and deleting entries.  Or perhaps a list of checkboxes and a way
+    # of adding things?
+    return T.input(type='text',
+                   name=(name := just_name(descr)),
+                   value=item_dict.get(name, ""))
 
 NAME_DISPLAY_HANDLERS = {
     'supplies': supplies_value,
     'location': location_value,
+    'type': type_value,
 }
 
 EDIT_HANDLERS = {
     'supplies': edit_supplies,
     'location': edit_location,
+    'type': edit_type,
 }
 
 def linked_value(descr, value, item_dict):
@@ -205,11 +231,11 @@ def extra_form_fields(fieldnames, values_dict):
     """Return a table of form fields for setting details of an item.
     See `extra_display_fields` for details of what can be in a descriptor."""
     return [[T.tr[T.td(class_='attr_table_label')[name_text(descr, FIELDS_REFERENCE)],
-                  (EDIT_HANDLERS[descr[2]](descr, values_dict)
-                   if isinstance(descr, list) and len(descr) >= 3
-                   else T.td[T.input(type='text',
-                                     name=(name := just_name(descr)),
-                                     value=values_dict.get(name, ""))])]
+                   T.td[EDIT_HANDLERS[descr[2]](descr, values_dict.get(name, ""), values_dict)
+                         if isinstance(descr, list) and len(descr) >= 3
+                         else T.input(type='text',
+                                      name=(name := just_name(descr)),
+                                     value=values_dict.get(name, ""))]]
             for descr in fieldnames]]
 
 def extra_display_fields(fieldnames, item_dict):

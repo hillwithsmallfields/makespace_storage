@@ -32,7 +32,9 @@ storage_manager.add_middleware(
 )
 
 INVENTORY_FIELDS = [
+    ["name", "The name of the item"],
     ["location", "The immediately surrounding location of the item.", 'location'],
+    ["type", "The type of the item", 'type'],
     ["Manufacturer", "The name of the manufacturer"],
     ["Manufacturer_URL", "This should be the home page of the manufacturer."],
     ["Manufacturer_page", "The title for the manufacturer's page for this equipment"],
@@ -53,6 +55,7 @@ INVENTORY_FIELDS = [
 ]
 
 STOCK_FIELDS = [
+    "locations",
     "Supplier", "Supplier_URL",
     "Minimum_stock",
     "Order_size",
@@ -688,7 +691,6 @@ def type_attribute(typename, attr, typedefs=None, default=None):
     """Return an attribute of a type."""
     if typedefs is None:
         typedefs = by_name(types_data())
-    # item_type = typedefs[typename]['name']
     while True:
         if typename not in typedefs:
             return default
@@ -707,8 +709,9 @@ def item_attribute(item, attr, local_only=None):
     if local_only:
         return None
     typedefs = by_name(types_data())
-    if item_dict['type'] in typedefs:
-        return type_attribute(item_dict['type'], attr, typedefs=typedefs)
+    key = 'name' if item_dict['kind'] == 'type' else 'type'
+    if item_dict[key] in typedefs:
+        return type_attribute(item_dict[key], attr, typedefs=typedefs)
     return None
 
 @storage_manager.get("/attribute/{item}/{attr}")
@@ -718,7 +721,7 @@ def attribute(item, attr):
 
 @storage_manager.get("/attributes/{item}/{attrs}")
 def attributes(item, attrs):
-    """FastAPI wrapper for `item_attribute`."""
+    """FastAPI wrapper for `item_attributes`."""
     return {attr: value
             for attr in attrs.split(';')
             if ((value := item_attribute(item, attr)) is not None)}

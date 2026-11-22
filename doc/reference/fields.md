@@ -136,6 +136,11 @@ stored on the floor under the shelves.
 Semicolon-separated list of stock type names of supplies.  Whitespace
 around the semicolons is stripped.
 
+The supplies for a piece of equipment are any consumables connected
+with its general operation.  For example, cleaning wipes will be a
+supply type for the laser cutters (but the materials users cut are
+not); and bin liners are supplies for wastebins.
+
 The barcodes of stock items are mapped onto the stock type names by a
 separate collection in the database, as there may be equivalent stock
 with different barcodes from different suppliers.

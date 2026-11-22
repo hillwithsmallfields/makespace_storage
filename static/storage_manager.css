@@ -18,6 +18,28 @@
 
 div.types {
     background-color=#ffff80;
+    border-width: 1;
+    border-style: solid;
+    border-color: green;
+}
+
+div.details {
+    background-color=#ffff80;
+    border-width: 1;
+    border-style: solid;
+    border-color: green;
+}
+
+div.contents {
+    border-width: 1;
+    border-style: solid;
+    border-color: orange;
+}
+
+div.supplies {
+    border-width: 1;
+    border-style: dotted;
+    border-color: orange;
 }
 
 .stock_item {

@@ -465,26 +465,28 @@ def add_stock_table(page, item):
 def add_details_panels(page, item_name, kind='inventory'):
     extra_fields = get_json("/suggested_fields")[kind]
     extra_values = get_json(f"/attributes/{item_name}/{';'.join(just_names(extra_fields))}")
-    page.append(T.div[T.h2["Further details"],
-                      switchable_panel(switcher_id='display_or_edit_switcher',
-                                       panels={'display': extra_display_fields(extra_fields, extra_values),
-                                               'edit': T.form(action=f"/update_inventory_item", method='post')[
-                                                   T.table[extra_form_fields(extra_fields, extra_values)],
-                                                   T.input(type='hidden', name='item_name', value=item_name),
-                                                   T.input(type='hidden', name='referring_page', value=request.url),
-                                                   T.input(type='submit', value="Update", method='post')
-                                               ]},
-                                       labels={'display': "Display",
-                                               'edit': "Edit"},
-                                       order=['display', 'edit'],
-                                       buttons_side='top',
-                                       initial='display')])
+    page.append(T.div(class_='details')
+                [T.h2["Further details"],
+                 switchable_panel(switcher_id='display_or_edit_switcher',
+                                  panels={'display': extra_display_fields(extra_fields, extra_values),
+                                          'edit': T.form(action=f"/update_inventory_item", method='post')[
+                                              T.table[extra_form_fields(extra_fields, extra_values)],
+                                              T.input(type='hidden', name='item_name', value=item_name),
+                                              T.input(type='hidden', name='referring_page', value=request.url),
+                                              T.input(type='submit', value="Update", method='post')
+                                          ]},
+                                  labels={'display': "Display",
+                                          'edit': "Edit"},
+                                  order=['display', 'edit'],
+                                  buttons_side='top',
+                                  initial='display')])
 
 def add_supplies_details(page, supplies):
     page.append(T.div(class_='supplies')[
-        T.h2["Supplies"],
-        T.ul[[T.li[k, str(v)]
-              for k, v in supplies.items()]]])
+        T.div(class_='supplies')[
+            T.h2["Supplies"],
+            T.ul[[T.li[k, str(v)]
+                  for k, v in supplies.items()]]]])
 
 @app.route("/stock/<stocktype>")
 def stock(stocktype):
@@ -540,11 +542,12 @@ def item_home(item=None):
                   T.p[summary]]]
     panels = []
     if inventory:
-        panels.append(T.div[T.h2["Inventory contents"],
-                          T.ul[[T.li[T.span(class_="inv_item")[T.a(href=f"/item/{dweller['name']}")[dweller['name']]]]
-                                for dweller in inventory]]])
+        panels.append(T.div(class_='contents')[
+            T.h2["Inventory contents"],
+            T.ul[[T.li[T.span(class_="inv_item")[T.a(href=f"/item/{dweller['name']}")[dweller['name']]]]
+                  for dweller in inventory]]])
     if (picture := get_attribute(item, 'picture', local_only=False)):
-        panels.append(T.img(src=picture))
+        panels.append(T.div(class_='picture')[T.img(src=picture)])
     if (supplies := get_json(f"/supplies/{item_name}")):
         add_supplies_details(panels, supplies)
     panels.append(T.div[T.h2["Types"],

@@ -153,7 +153,7 @@ def supplies_value(descr, value, item_dict):
             for si in [s.strip() for s in value.split(';')]]
 
 def item_name(item):
-    return get_json(f"/attribute/{item}/name")['name']
+    return get_json(f"/attribute/{item}/name")['name'] if item else "The world"
 
 def location_value(descr, value, item_dict):
     # For now, it's the same result as not having a display handler,

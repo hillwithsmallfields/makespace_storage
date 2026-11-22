@@ -153,7 +153,7 @@ def edit_supplies(descr, item_dict):
     # of adding things?
     return T.input(type='text',
                    name=(name := just_name(descr)),
-                   value=valuesdict.get(name, ""))
+                   value=item_dict.get(name, ""))
 
 def edit_location(descr, item_dict):
     """Make an edit form part for the location of an item.

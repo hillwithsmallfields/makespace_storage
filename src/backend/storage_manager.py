@@ -252,11 +252,11 @@ def set_location(location_id, barcode):
 def locations_for(typename):
     """Return the names of locations that a given type of item may be stored in.
     Uses the 'fits' column of the database, which is a semicolon-separated list of location types."""
-    fits = [loctype.strip() for loctype in (type_attribute(typename, 'fits') or []).split(';')]
-    return {'location_types': fits,
+    fitting_location_types = [loctype.strip() for loctype in (type_attribute(typename, 'fits', default="").split(';')) or []]
+    return {'location_types': fitting_location_types,
             'locations': [item['name']
                           for item in inventory_data().find({})
-                          if item['type'] in fits]}
+                          if item['type'] in fitting_location_types]}
 
 def by_name(collection):
     """Return a dictionary of a collection's contents, with the names as the keys."""
@@ -684,20 +684,18 @@ def details(item):
             'location': location_string(loc),
             'details': tidy_dictionary(lookup(item))}
 
-def type_attribute(typename, attr, typedefs=None):
+def type_attribute(typename, attr, typedefs=None, default=None):
     """Return an attribute of a type."""
-    if typename is None:
-        print("type_attribute of None")
     if typedefs is None:
         typedefs = by_name(types_data())
-    item_type = typedefs[typename]['name']
+    # item_type = typedefs[typename]['name']
     while True:
-        if item_type not in typedefs:
-            return None
-        if (value := typedefs[item_type].get(attr)):
+        if typename not in typedefs:
+            return default
+        if (value := typedefs[typename].get(attr)):
             return value
-        if not (item_type := typedefs[item_type]['parent']):
-            return None
+        if not (typename := typedefs[typename]['parent']):
+            return default
 
 def item_attribute(item, attr, local_only=None):
     """Return an attribute of an item.
@@ -710,7 +708,7 @@ def item_attribute(item, attr, local_only=None):
         return None
     typedefs = by_name(types_data())
     if item_dict['type'] in typedefs:
-        return type_attribute(item_dict['type'], attr, typedefs)
+        return type_attribute(item_dict['type'], attr, typedefs=typedefs)
     return None
 
 @storage_manager.get("/attribute/{item}/{attr}")

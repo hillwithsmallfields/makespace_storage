@@ -21,40 +21,4 @@ function select_version(container_id, choice) {
     }
 }
 
-function find_item() {
-    item_name = document.getElementById('item_to_find').value;
-    fetch(`${api}/where/${item_name}`).then((response) => {
-        return response.json();
-    }).then((json) => {
-        console.log(json.location);
-        document.getElementById('location').innerText = json.location;
-    }).catch((err) => console.error('Fetch problem: ${err.message}'))
-}
-
-function inspect_item() {
-    item_name = document.getElementById('item_to_inspect').value;
-    fetch(`${api}/details/${item_name}`).then((response) => {
-        return response.json();
-    }).then((json) => {
-        console.log(json.location);
-        document.getElementById('location').innerText = json.location;
-        console.log(json.types);
-        document.getElementById('types').innerText = json.types;
-    }).catch((err) => console.error('Fetch problem: ${err.message}'))
-}
-
-function place_item() {
-    item_name = document.getElementById('item_to_store').value;
-    place_name = document.getElementById('place').value;
-    fetch(`${api}/store/${item_name}/${place_name}`).then((response) => {
-        return response.json();
-    }).then((json) => {
-        console.log(json.location);
-        document.getElementById('location').innerText = json.location;
-    }).catch((err) => console.error('Fetch problem: ${err.message}'))
-}
-
-function startup() {
-    select_version('one_page_app_switcher', 'Find');
-}
 </script>

@@ -21,4 +21,8 @@ function select_version(container_id, choice) {
     }
 }
 
+function main_page_setup() {
+    select_version ('display_or_edit_switcher', 'display');
+}
+
 </script>

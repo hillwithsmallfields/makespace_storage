@@ -559,7 +559,7 @@ def item_home(item=None):
                                         T.td[str(dweller['quantity'])]]
                                 for dweller in stock]]])
     page.append(wrap_box(*panels))
-    return titled_page(title, page)
+    return titled_page(title, page, body_params={'onload': "main_page_setup();"})
 
 @app.route("/<typename>/type")
 def type_details(typename):

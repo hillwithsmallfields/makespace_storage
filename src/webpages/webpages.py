@@ -25,27 +25,31 @@ FIELDS_REFERENCE = "https://github.com/hillwithsmallfields/makespace_storage/blo
 
 # CORS(app, origins=["*"])
 
-def finder_form(previous_destination=None):
-    return T.form(action="/", class_='finder_form')[
+def quick_form(current_item=None,
+               previous_destination=None):
+    return T.div(class_='quick_form')[
         T.div(class_='finder')[
-            T.fieldset[
-                T.legend["Item finder"],
-                T.label(for_="item")["Name or barcode"],
-                T.input(type="text", name="item", id="item_to_find", autofocus=True),
-                T.button(type='submit')["Find item"]]],
+            T.form(action="/", method='get')[
+                T.fieldset[
+                    T.legend["Item finder"],
+                    T.label(for_="item")["Name or barcode"],
+                    T.input(type="text", name="item", id="item_to_find", autofocus=True),
+                    T.button(type='submit')["Find item"]]]],
         T.div(class_='mover')[
-            T.fieldset[
-                T.legend["Item mover"],
-                T.label(for_="destination")["Destination"
-                                            + (f" (default {previous_destination})"
+            T.form(action="/move", method='post')[
+                T.fieldset[
+                    T.legend["Item mover"],
+                    T.label(for_="destination")["Destination"
+                                                + (f" (default {previous_destination})"
                                                if previous_destination
                                                else "")],
-                T.input(type="hidden", name="default_destination", value=previous_destination or ""),
-                T.input(type="text", name="destination", id="destination", autofocus=True),
-                T.button(type='submit')["Move item"]]]]
+                    T.input(type="hidden", name="current_item", value=current_item or ""),
+                    T.input(type="hidden", name="default_destination", value=previous_destination or ""),
+                    T.input(type="text", name="destination", id="destination"),
+                    T.button(type='submit')["Move item"]]]]]
 
-def header():
-    return [finder_form()]
+def header(header_params):
+    return [quick_form(**header_params)]
 
 def footer():
     return [T.hr(),
@@ -55,8 +59,8 @@ def footer():
                 T.a(href="https://web.makespace.org/training/")["Training"], "]"],
             T.p["Generated at ", datetime.datetime.now().isoformat(timespec='seconds')]]
 
-def titled_page(title, page, script="", body_params=None):
-    return str(exprpages.page_text(T.body(**(body_params or {}))[header(),
+def titled_page(title, page, script="", body_params=None, header_params=None):
+    return str(exprpages.page_text(T.body(**(body_params or {}))[header(header_params or {}),
                                                                  page,
                                                                  footer()],
                                    title=title,
@@ -80,10 +84,10 @@ def get_json(path, params=None):
 
 def post_json(path, params=None):
     """Post JSON to the API server."""
-    response = requests.post(f"{API}{path}", params=params or {})
+    response = requests.post(f"{API}{path}", data=params or {})
     if response.status_code == 200:
         return response.json()
-    raise requests.exceptions.HTTPError(f"Could not post {path}: {response.status_code} with params {params}")
+    raise requests.exceptions.HTTPError(f"Could not post {path}: {response.status_code} with params {params}; response is {response.content}")
 
 def get_attribute(item, attribute, local_only=False, default=None):
     return get_json(f"/attribute/{item}/{attribute}",
@@ -106,6 +110,21 @@ def home_page():
               T.div[T.h2["Top-level types"],
                     T.ul[[T.li[T.span(class_="type")[T.a(href=tlt)[tlt.title()]]]
                           for tlt in get_json("/top-level-types")['types']]]]])
+
+@app.route("/move", methods=['post'])
+def move():
+    """Move an item to a new location."""
+    current_item = request.form.get("current_item")
+    destination = request.form.get("destination") or request.form.get("default_destination")
+    post_json("/move", params={'item': current_item, 'location': destination, 'quantity': 1})
+    return titled_page(
+        "Move confirmation",
+        T.div(class_='move_confirmation')[
+            T.h1["Move confirmation"],
+            T.p[T.a(href=f"/item/{current_item}")[current_item],
+                " is now at ",
+                T.a(href=f"/item/{destination}")[destination],
+                "."]])
 
 @app.route("/item/<item>")
 def item_item(item):
@@ -570,7 +589,9 @@ def item_home(item=None):
                                         T.td[str(dweller['quantity'])]]
                                 for dweller in stock]]])
     page.append(wrap_box(*panels))
-    return titled_page(title, page, body_params={'onload': "main_page_setup();"})
+    return titled_page(title, page,
+                       body_params={'onload': "main_page_setup();"},
+                       header_params={'current_item': item_name})
 
 @app.route("/<typename>/type")
 def type_details(typename):

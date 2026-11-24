@@ -8,11 +8,13 @@ import json
 import re
 import urllib
 
+from typing import Annotated
+
 import decouple
 import pymongo
 
 from bson.objectid import ObjectId
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Form
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -767,19 +769,23 @@ def is_stock(barcode):
     """Return whether a barcode is a stock barcode."""
     return not is_inventory(barcode)
 
-@storage_manager.post("/move/{item}/{location}")
-async def store(item: str,
-                location: int,
-                quantity: int):
+@storage_manager.post("/move")
+async def move(item: Annotated[str, Form()],
+               location: Annotated[str, Form()],
+               quantity: Annotated[int, Form()]):
     """Mark that the item is stored in the given location."""
-    barcode = lookup(item)['barcode']
-    if is_inventory(barcode):
+    item_data = lookup(item)
+    location_data = lookup(location)
+    if is_inventory(item_data['barcode']):
         inv = inventory_data()
-        if inv.find_one({'barcode': location}):
-            inv.update_one({'barcode': barcode},
-                           {'$set': {'location': location}},
+        if inv.find_one({'barcode': location_data['barcode']}):
+            inv.update_one({'barcode': item_data['barcode']},
+                           {'$set': {'location': location_data['barcode']}},
                            upsert=True)
-            return {'barcode': barcode, 'location': location}
+            return {'item_barcode': item_data['barcode'],
+                    'item_name': item_data['name'],
+                    'location_barcode': location_data['barcode'],
+                    'location_name': location_data['name']}
         raise HTTPException(status_code=404,
                             detail=f"Location {location} not found when storing an item")
     else:

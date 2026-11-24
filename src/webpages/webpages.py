@@ -3,12 +3,16 @@
 """Web front-end for the storage management system."""
 
 import datetime
+from io import BytesIO
 import json
 import re
 import requests
 
-from flask import Flask, request, redirect
+from flask import Flask, request, redirect, Response
 # from flask_cors import CORS
+
+from barcode import EAN13
+from barcode.writer import SVGWriter
 
 from expressionive.expressionive import htmltags as T
 import expressionive.exprpages as exprpages
@@ -132,6 +136,12 @@ def move():
                 " is now at ",
                 T.a(href=f"/item/{destination}")[destination],
                 "."]])
+
+@app.route("/barcode/<number>")
+def barcode(number):
+    image = BytesIO()
+    EAN13("100000902922", writer=SVGWriter()).write(image)
+    return Response(image.getvalue(), mimetype='image/svg+xml')
 
 @app.route("/item/<item>")
 def item_item(item):
@@ -568,6 +578,7 @@ def item_home(item=None):
     types = details['types']
     item_name = res['name']
     item_type = res['type']
+    barcode = details['details']['barcode']
     links = res['links']
     contents = get_json(f"/contents/{item}")
     inventory = contents['inventory']
@@ -590,8 +601,9 @@ def item_home(item=None):
         panels.append(T.div(class_='picture')[T.img(src=picture)])
     if (supplies := get_json(f"/supplies/{item_name}")):
         add_supplies_details(panels, supplies)
-    panels.append(T.div[T.h2["Types"],
-                      T.ul[[T.li[T.span(class_="type")[T.a(href=f"/{t}/type")[t]]] for t in types]]])
+    panels.append(wrap_box(T.div[T.h2["Types"],
+                                 T.ul[[T.li[T.span(class_="type")[T.a(href=f"/{t}/type")[t]]] for t in types]]],
+                               T.img(src=f"/barcode/{barcode}")))
     add_details_panels(panels, item_name, res['kind'])
     if (stock := contents['stock']):
         panels.append(T.div[T.h2["Stock contents"],

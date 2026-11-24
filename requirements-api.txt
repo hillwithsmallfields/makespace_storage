@@ -3,3 +3,4 @@ fastapi[standard]
 pymongo
 python-decouple
 requests
+python-barcode

@@ -65,4 +65,12 @@ td.attr_table_value {
   position: absolute;
 }
 
+.active {
+    font-weight: bolder;
+}
+
+.inactive {
+    font-weight: normal;
+}
+
 </style>

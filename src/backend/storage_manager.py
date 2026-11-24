@@ -8,13 +8,13 @@ import json
 import re
 import urllib
 
-from typing import Annotated
+from typing import Annotated, Any
 
 import decouple
 import pymongo
 
 from bson.objectid import ObjectId
-from fastapi import FastAPI, HTTPException, Request, Form
+from fastapi import FastAPI, HTTPException, Request, Form, Body
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -251,13 +251,17 @@ def inventory_contents(location, recursive=False):
 
 def set_location(location_id, barcode):
     """Set the location of an item."""
-    inventory_data().update({'barcode': barcode}, {'location': location_id}, upsert=True)
+    inventory_data().update({'barcode': barcode},
+                            # force this one to its numeric form
+                            {'location': int(lookup(location_id)['barcode'])},
+                            upsert=True)
 
 @storage_manager.get("/locations_for/{typename}")
 def locations_for(typename):
     """Return the names of locations that a given type of item may be stored in.
     Uses the 'fits' column of the database, which is a semicolon-separated list of location types."""
-    fitting_location_types = [loctype.strip() for loctype in (type_attribute(typename, 'fits', default="").split(';')) or []]
+    fitting_location_types = [loctype.strip()
+                              for loctype in (type_attribute(typename, 'fits', default="").split(';')) or []]
     return {'location_types': fitting_location_types,
             'locations': [item['name']
                           for item in inventory_data().find({})
@@ -729,10 +733,10 @@ def attributes(item, attrs):
             if ((value := item_attribute(item, attr)) is not None)}
 
 @storage_manager.post("/update_inventory_item")
-async def update_item(request: Request):
-    item_name = request.query_params['item_name']
+async def update_item(payload: dict[str, Any] = Body(...)):
+    item_name = payload.pop('item_name')
     inventory_data().update_one({'name': item_name}, # TODO: identify it by barcode rather than name
-                                {'$set': dict(request.query_params.items())},
+                                {'$set': dict(payload.items())},
                                 upsert=True)
     return {'updated': item_name}
 
@@ -773,18 +777,19 @@ def is_stock(barcode):
 async def move(item: Annotated[str, Form()],
                location: Annotated[str, Form()],
                quantity: Annotated[int, Form()]):
-    """Mark that the item is stored in the given location."""
+    """Mark that the item is stored in the given location.
+    The quantity argument is used only for stock moves."""
     item_data = lookup(item)
     location_data = lookup(location)
     if is_inventory(item_data['barcode']):
         inv = inventory_data()
         if inv.find_one({'barcode': location_data['barcode']}):
             inv.update_one({'barcode': item_data['barcode']},
-                           {'$set': {'location': location_data['barcode']}},
+                           {'$set': {'location': int(location_data['barcode'])}},
                            upsert=True)
-            return {'item_barcode': item_data['barcode'],
+            return {'item_barcode': int(item_data['barcode']),
                     'item_name': item_data['name'],
-                    'location_barcode': location_data['barcode'],
+                    'location_barcode': int(location_data['barcode']),
                     'location_name': location_data['name']}
         raise HTTPException(status_code=404,
                             detail=f"Location {location} not found when storing an item")

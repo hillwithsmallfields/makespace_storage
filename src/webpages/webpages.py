@@ -84,6 +84,13 @@ def get_json(path, params=None):
 
 def post_json(path, params=None):
     """Post JSON to the API server."""
+    response = requests.post(f"{API}{path}", json=params or {})
+    if response.status_code == 200:
+        return response.json()
+    raise requests.exceptions.HTTPError(f"Could not post {path}: {response.status_code} with params {params}; response is {response.content}")
+
+def post_form(path, params=None):
+    """Post JSON to the API server."""
     response = requests.post(f"{API}{path}", data=params or {})
     if response.status_code == 200:
         return response.json()
@@ -116,7 +123,7 @@ def move():
     """Move an item to a new location."""
     current_item = request.form.get("current_item")
     destination = request.form.get("destination") or request.form.get("default_destination")
-    post_json("/move", params={'item': current_item, 'location': destination, 'quantity': 1})
+    post_form("/move", params={'item': current_item, 'location': destination, 'quantity': 1})
     return titled_page(
         "Move confirmation",
         T.div(class_='move_confirmation')[
@@ -220,7 +227,7 @@ def edit_location(descr, value, item_dict):
     # old_location_name = value
     return (T.a(href=f"{FIELDS_REFERENCE}#fixed", target='_blank')["This item is not movable"]
             if get_json(f"/attribute/{name}/fixed")['fixed']
-            else (T.select(name=name, id=name)[
+            else (T.select(name=field_name, id=field_name)[
                     [T.option(value=opt,
                               # I have to not supply 'selected' at all, as selected=False doesn't work
                               **({'selected': 'true'} if old_location_name==opt else {}))[opt]
@@ -434,10 +441,13 @@ def describe():
 @app.route("/update_inventory_item", methods=['post'])
 def update():
     referring_page = request.form.get('referring_page')
+    # return titled_page("debug",
+    #                    [T.ul[[T.li[f"{k}: {v}"] for k, v in request.form.items() if v]]])
     post_json("/update_inventory_item", params={
         k: v
         for k, v in request.form.items()
-        if k not in ['referring_page']})
+        if (v
+            and k not in ['referring_page'])})
     return redirect(referring_page)
 
 @app.route("/update_stock", methods=['post'])

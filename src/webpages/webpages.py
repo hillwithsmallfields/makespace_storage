@@ -25,13 +25,24 @@ FIELDS_REFERENCE = "https://github.com/hillwithsmallfields/makespace_storage/blo
 
 # CORS(app, origins=["*"])
 
-def finder_form():
+def finder_form(previous_destination=None):
     return T.form(action="/", class_='finder_form')[
-        T.fieldset[
-            T.legend["Item finder"],
-            T.label(for_="item")["Name or barcode"],
-            T.input(type="text", name="item", id="item_to_find", autofocus=True),
-            T.button(type='submit')["Find item"]]]
+        T.div(class_='finder')[
+            T.fieldset[
+                T.legend["Item finder"],
+                T.label(for_="item")["Name or barcode"],
+                T.input(type="text", name="item", id="item_to_find", autofocus=True),
+                T.button(type='submit')["Find item"]]],
+        T.div(class_='mover')[
+            T.fieldset[
+                T.legend["Item mover"],
+                T.label(for_="destination")["Destination"
+                                            + (f" (default {previous_destination})"
+                                               if previous_destination
+                                               else "")],
+                T.input(type="hidden", name="default_destination", value=previous_destination or ""),
+                T.input(type="text", name="destination", id="destination", autofocus=True),
+                T.button(type='submit')["Move item"]]]]
 
 def header():
     return [finder_form()]

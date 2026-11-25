@@ -284,8 +284,11 @@ def fill_out_location(location_name):
     typedefs = by_name(types_data())
     result = []
     countdown = 8               # in case of looping types
-    inv = inventory_data()
-    while (item := inv.find_one({'barcode': int(location_name)})):
+    while (item := lookup(location_name)):
+        if item['kind'] != 'inventory':
+            # we have hit an unknown location (0) with kind ==
+            # 'new_inventory', so that's the end of the hierarchy
+            break
         item['preposition'] = typedefs[item['type']]['preposition']
         location_name = item['location']
         result.append(tidy_dictionary(item))

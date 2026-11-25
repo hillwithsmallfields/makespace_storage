@@ -19,6 +19,8 @@ from expressionive.expressionive import htmltags as T
 import expressionive.exprpages as exprpages
 from expressionive.expridioms import switchable_panel, wrap_box
 
+import web_auth
+
 # Where this server finds the API server, and the address at which
 # browsers reach this server.  Overridden by environment variables
 # when running in containers (see docker-compose.yaml).
@@ -27,15 +29,37 @@ WEB = os.environ.get("STORAGE_WEB_URL", "http://127.0.0.1:5000")
 
 app = Flask("storage")
 
+# Login via Keycloak; anonymous visitors can look but not change anything.
+web_auth.init_app(app, WEB)
+
 FIELDS_REFERENCE = "https://github.com/hillwithsmallfields/makespace_storage/blob/trunk/doc/reference/fields.md"
 
 # CORS(app, origins=[WEB+"/*", API+"/*"])
 
 # CORS(app, origins=["*"])
 
+def login_status():
+    """Say who is logged in, with a link to log in or out."""
+    user = web_auth.current_user()
+    if user is None:
+        return T.div(class_='login_status')[
+            "Not logged in: you can look things up, but to make changes you must ",
+            T.a(href="/login?next=" + requests.utils.quote(request.full_path.rstrip('?'), safe=''))["log in"],
+            "."]
+    membership = user.get('membership_number')
+    return T.div(class_='login_status')[
+        "Logged in as ", T.span(class_='username')[user.get('name') or user['username']],
+        f" ({user.get('level') or 'no storage access'}",
+        f", membership number {membership})" if membership else ")",
+        " [", T.a(href="/logout")["Log out"], "]"]
+
+def logged_in():
+    return web_auth.current_user() is not None
+
 def quick_form(current_item=None,
                previous_destination=None):
     return T.div(class_='quick_form')[
+        login_status(),
         T.div(class_='finder')[
             T.form(action="/", method='get')[
                 T.fieldset[
@@ -43,7 +67,7 @@ def quick_form(current_item=None,
                     T.label(for_="item")["Name or barcode"],
                     T.input(type="text", name="item", id="item_to_find", autofocus=True),
                     T.button(type='submit')["Find item"]]]],
-        T.div(class_='mover')[
+        None if not logged_in() else T.div(class_='mover')[
             T.form(action="/move", method='post')[
                 T.fieldset[
                     T.legend["Item mover"],
@@ -85,21 +109,21 @@ def get_style():
 
 def get_json(path, params=None):
     """Get JSON from the API server."""
-    response = requests.get(f"{API}{path}", params=params or {})
+    response = requests.get(f"{API}{path}", params=params or {}, headers=web_auth.api_headers())
     if response.status_code == 200:
         return response.json()
     raise requests.exceptions.HTTPError(f"Could not get {path}: {response.status_code} with params {params}")
 
 def post_json(path, params=None):
     """Post JSON to the API server."""
-    response = requests.post(f"{API}{path}", json=params or {})
+    response = requests.post(f"{API}{path}", json=params or {}, headers=web_auth.api_headers())
     if response.status_code == 200:
         return response.json()
     raise requests.exceptions.HTTPError(f"Could not post {path}: {response.status_code} with params {params}; response is {response.content}")
 
 def post_form(path, params=None):
     """Post JSON to the API server."""
-    response = requests.post(f"{API}{path}", data=params or {})
+    response = requests.post(f"{API}{path}", data=params or {}, headers=web_auth.api_headers())
     if response.status_code == 200:
         return response.json()
     raise requests.exceptions.HTTPError(f"Could not post {path}: {response.status_code} with params {params}; response is {response.content}")
@@ -364,7 +388,11 @@ def create_something_page(item, hint):
     return titled_page(
         "Create item",
         T.div[T.p[f'"{item or str(barcode)}" (type {type(barcode)} was not found in any of our collections.'],
-              T.p["This is your chance to add it to the appropriate collection."],
+              T.p["This is your chance to add it to the appropriate collection."
+                  if logged_in()
+                  else ["You will need to ",
+                        T.a(href="/login?next=" + requests.utils.quote(request.path, safe=''))["log in"],
+                        " before you can add it."]],
               switchable_panel(switcher_id='creator_switcher',
                                panels={'inventory': inventory_create_or_edit_form(item, barcode, False),
                                        'type': inventory_type_create_or_edit_form(item, False),
@@ -495,15 +523,16 @@ def consume():
                        T.p["Consumption record will go here"])
 
 def add_stock_table(page, item, levels=None):
+    editable = logged_in()
     page.append(T.table[
-        T.tr[T.th["Location"], T.th["Quantity"], T.th["Adjust by"]],
+        T.tr[T.th["Location"], T.th["Quantity"], T.th["Adjust by"] if editable else None],
         [[T.tr[
             T.td(class_="stock_item attr_table_label")[
                 T.a(href=f"/item/{location}")[
                     get_json(f"/name/{location}")['name']
                 ]],
             T.td[str(count)],
-            T.td[T.form(action="/update_stock", method='post')[
+            None if not editable else T.td[T.form(action="/update_stock", method='post')[
                 T.input(type='text', name='delta', value="1"),
                 T.input(type='submit', name='action', value='-'),
                 T.input(type='submit', name='action', value='='),
@@ -518,6 +547,10 @@ def add_stock_table(page, item, levels=None):
 def add_details_panels(page, item_name, kind='inventory'):
     extra_fields = get_json("/suggested_fields")[kind]
     extra_values = get_json(f"/attributes/{item_name}/{';'.join(just_names(extra_fields))}")
+    if not logged_in():
+        page.append(T.div(class_='details')[T.h2["Further details"],
+                                            extra_display_fields(extra_fields, extra_values)])
+        return
     page.append(T.div(class_='details')
                 [T.h2["Further details"],
                  switchable_panel(switcher_id='display_or_edit_switcher',

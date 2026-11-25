@@ -3,3 +3,4 @@ flask-cors
 requests
 expressionive>=0.2.0
 python-barcode
+authlib

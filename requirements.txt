@@ -1,5 +1,7 @@
 fastapi
 pymongo
+pyjwt[crypto]
+authlib
 python-decouple
 flask
 flask-cors

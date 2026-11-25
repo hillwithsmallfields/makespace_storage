@@ -472,7 +472,7 @@ def update_stock():
     stock_item = request.form.get('stock_item')
     location = request.form.get('location')
     existing = request.form.get('existing')
-    post_json("/update_stock", params={
+    post_form("/update_stock", params={
         'action': action,
         'delta': delta,
         'stock_item': stock_item,

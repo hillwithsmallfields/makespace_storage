@@ -265,7 +265,7 @@ def locations_for(typename):
     return {'location_types': fitting_location_types,
             'locations': [item['name']
                           for item in inventory_data().find({})
-                          if item['type'] in fitting_location_types]}
+                          if item.get('type') in fitting_location_types]}
 
 def by_name(collection):
     """Return a dictionary of a collection's contents, with the names as the keys."""
@@ -426,7 +426,7 @@ async def load_stock(request: Request):
 @storage_manager.get("/dump-stock")
 async def dump_stock():
     """Return the database stock as CSV text."""
-    return dump_table(stock_data(), left_keys=['name', 'quantity', 'location'])
+    return dump_table(stock_data(), left_keys=['name', 'location', 'quantity'])
 
 @storage_manager.get("/search")
 def search(pattern):
@@ -605,23 +605,25 @@ def stock_levels(item):
     return {s['location']: s['quantity'] for s in stock_data().find({'name': item})}
 
 @storage_manager.post("/update_stock")
-def update_stock(request: Request):
-    action = request.query_params['action'][0],
-    delta = int(request.query_params['delta']) * (-1 if action == '-' else 1)
-    stock_item = request.query_params['stock_item']
-    location = str(lookup(request.query_params['location'])['barcode'])
-    existing = request.query_params['existing']
-    referring_page = request.query_params['referring_page']
-    print("in update_stock with action", action, "delta:", delta, "stock_item:", stock_item, "location:", location, "existing:", existing, "referring_page:", referring_page)
-    # TODO: mongo stuff for this
+def update_stock(action: Annotated[str, Form()],
+                 delta: Annotated[int, Form()],
+                 stock_item: Annotated[str, Form()],
+                 location: Annotated[str, Form()],
+                 existing: Annotated[int, Form()],
+                 referring_page: Annotated[str, Form()],
+                 ):
+    delta = delta * (-1 if action[0] == '-' else 1)
+    location = lookup(location)['barcode']
     data = stock_data()
-    # if action == '=':
-    #     data.update_one({'name': stock_item,
-    #                      f"locations.{location}"}, {'$set': delta})
-    # else:
-    #     data.update_one({'name': stock_item,
-    #                      f"locations.{location}"}, {'$inc': delta})
-    return {'placeholder': f"updated {stock_item} locations.{location}"}
+    if action == '=':
+        data.update_one({'name': stock_item,
+                         'location': location},
+                        {'$set': {'quantity': delta}})
+    else:
+        data.update_one({'name': stock_item,
+                         'location': location},
+                        {'$inc': {'quantity': delta}})
+    return {'update_stock_result': f"updated {stock_item} locations.{location}"}
 
 @storage_manager.get("/what/{pattern}")
 async def what(pattern):

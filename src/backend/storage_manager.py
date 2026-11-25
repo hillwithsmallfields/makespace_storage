@@ -105,7 +105,6 @@ def stock_types_data():
     global _stock_types
     if _stock_types is None:
         _stock_types = _ensure_database()['stock_types']
-        _stock_types.create_index('name', unique=True) # ignored if it already exists
     return _stock_types
 
 def inventory_data():
@@ -142,7 +141,6 @@ def stock_data():
     global _stock
     if _stock is None:
         _stock = _ensure_database()['stock']
-        _stock.create_index('name', unique=True) # ignored if it already exists
     return _stock
 
 def name_to_id(name):
@@ -160,7 +158,9 @@ def id_to_name(barcode):
 def name(barcode):
     """Look up a barcode (or name) and return a name."""
     found = lookup(barcode)
-    return {'barcode': found['barcode'], 'name': found['name']}
+    return ({'barcode': found['barcode'], 'name': found['name']}
+            if found
+            else {'name': barcode, 'barcode': barcode})
 
 def next_dummy_barcode():
     """Return the next dummy barcode."""
@@ -346,13 +346,12 @@ def load_table(collection, text, key='name'):
     count = 0
     try:
         for row in csv.DictReader(io.StringIO(text)):
-            res = collection.update_one({key: row[key]},
-                                        {'$set': convert_dict_entries(row)},
-                                        upsert=True)
+            print("inserting", row, convert_dict_entries(row))
+            res = collection.insert_one(convert_dict_entries(row))
             count += 1
     except Exception as e:
         print("problem while uploading a data table:", e)
-        raise HTTPException(status_code=500, detail='Something went wrong')
+        raise HTTPException(status_code=500, detail=f'Something went wrong: {e}')
     return {"result": f"inserted or updated {count} entries"}
 
 def bring_to_front(left_keys, all_keys):
@@ -600,9 +599,15 @@ async def stock_locations(stocktype):
 @storage_manager.get("/levels/{item}")
 def stock_levels(item):
     """Return the stock levels of an item."""
+    print("getting stock levels of", item)
     for s in stock_data().find({'name': item}):
-        print("found", s)
-    return {s['location']: s['quantity'] for s in stock_data().find({'name': item})}
+        print(s)
+    print("---")
+    result = {'name': item,
+              'levels': {id_to_name(s['location']): s['quantity']
+                         for s in stock_data().find({'name': item})}}
+    print("returning", result)
+    return result
 
 @storage_manager.post("/update_stock")
 def update_stock(action: Annotated[str, Form()],

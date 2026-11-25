@@ -494,13 +494,12 @@ def consume():
     return titled_page("Item consumed",
                        T.p["Consumption record will go here"])
 
-def add_stock_table(page, item):
-    # page.append(T.p[str(get_json(f"/levels/{item}"))])
+def add_stock_table(page, item, levels=None):
     page.append(T.table[
         T.tr[T.th["Location"], T.th["Quantity"], T.th["Adjust by"]],
         [[T.tr[
             T.td(class_="stock_item attr_table_label")[
-                T.a(href=f"/stock/{location}")[
+                T.a(href=f"/item/{location}")[
                     get_json(f"/name/{location}")['name']
                 ]],
             T.td[str(count)],
@@ -514,7 +513,7 @@ def add_stock_table(page, item):
                 T.input(type='hidden', name='location', value=location),
                 T.input(type='hidden', name='existing', value=str(count)),
             ]]]
-          for location, count in get_json(f"/levels/{item}").items()]]])
+          for location, count in (levels or get_json(f"/levels/{item}"))['levels'].items()]]])
 
 def add_details_panels(page, item_name, kind='inventory'):
     extra_fields = get_json("/suggested_fields")[kind]
@@ -545,8 +544,10 @@ def add_supplies_details(page, supplies):
 @app.route("/stock/<stocktype>")
 def stock(stocktype):
     """Return a page about a type of stock."""
-    page = [T.div[T.h1["Stock: ", stocktype]]]
-    add_stock_table(page, stocktype)
+    data = get_json(f"/levels/{stocktype}")
+    page = [T.div[T.h1["Stock: ",
+                       stocktype]]]
+    add_stock_table(page, stocktype, data)
     return titled_page(stocktype, page)
 
 @app.route("/<item>")
@@ -609,11 +610,11 @@ def item_home(item=None):
                                  T.ul[[T.li[T.span(class_="type")[T.a(href=f"/{t}/type")[t]]] for t in types]]],
                                T.img(src=f"/barcode/{barcode}")))
     add_details_panels(panels, item_name, res['kind'])
-    if (stock := contents['stock']):
+    if (stock_contents := contents['stock']):
         panels.append(T.div[T.h2["Stock contents"],
                           T.table[[T.tr[T.td(class_="stock_item")[T.a(href=f"/stock/{dweller['name']}")[dweller['name']]],
                                         T.td[str(dweller['quantity'])]]
-                                for dweller in stock]]])
+                                for dweller in stock_contents]]])
     page.append(wrap_box(*panels))
     return titled_page(title, page,
                        body_params={'onload': "main_page_setup();"},

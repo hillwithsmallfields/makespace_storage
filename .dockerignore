@@ -1,0 +1,9 @@
+.git
+.env
+*.venv
+**/__pycache__
+dev-data
+dev-scripts
+doc
+tests
+terminal.org

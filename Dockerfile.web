@@ -1,0 +1,26 @@
+# Web front-end (Flask), which gets all its data from the API server.
+FROM python:3.13-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+
+COPY requirements-web.txt .
+RUN pip install -r requirements-web.txt gunicorn
+
+# webpages.py reads static/storage_manager.{js,css} relative to the
+# working directory, so static/ must sit directly under /app.
+COPY static/ static/
+COPY src/ src/
+
+RUN useradd --system --no-create-home appuser
+USER appuser
+
+EXPOSE 5000
+
+# gunicorn rather than Flask's built-in debug server, which is not
+# safe to expose on a network.
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--pythonpath", "src/webpages", "webpages:app"]

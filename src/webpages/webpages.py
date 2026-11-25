@@ -5,6 +5,7 @@
 import datetime
 from io import BytesIO
 import json
+import os
 import re
 import requests
 
@@ -18,8 +19,11 @@ from expressionive.expressionive import htmltags as T
 import expressionive.exprpages as exprpages
 from expressionive.expridioms import switchable_panel, wrap_box
 
-API = "http://127.0.0.1:8000"
-WEB = "http://127.0.0.1:5000"
+# Where this server finds the API server, and the address at which
+# browsers reach this server.  Overridden by environment variables
+# when running in containers (see docker-compose.yaml).
+API = os.environ.get("STORAGE_API_URL", "http://127.0.0.1:8000")
+WEB = os.environ.get("STORAGE_WEB_URL", "http://127.0.0.1:5000")
 
 app = Flask("storage")
 

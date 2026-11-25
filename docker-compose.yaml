@@ -1,0 +1,63 @@
+# Makespace storage manager: MongoDB + API server + web server.
+#
+#   cp .env.example .env      # then edit the passwords
+#   docker compose up -d --build
+#
+# Browse to http://<pi-address>:5000 .  The API is published only on
+# the Pi's loopback (127.0.0.1:8000) so dev-scripts/loader etc. work
+# from the Pi itself without exposing the unauthenticated API to the
+# network.
+
+services:
+  mongo:
+    image: ${MONGO_IMAGE:-mongo:7}
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?set MONGO_ROOT_PASSWORD in .env}
+      MONGO_INITDB_DATABASE: ${DATABASE_NAME:-makespace-storage}
+      # Read by docker/mongo-init/create-app-user.sh
+      MONGOUSER: ${MONGOUSER:-makespace}
+      MONGOPASSWORD: ${MONGOPASSWORD:?set MONGOPASSWORD in .env}
+    volumes:
+      - mongo-data:/data/db
+      - ./docker/mongo-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # 4.4 images have `mongo`, 5.0+ images have `mongosh`.
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'db.adminCommand(\"ping\").ok' 2>/dev/null || mongo --quiet --eval 'db.adminCommand(\"ping\").ok'"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    environment:
+      MONGOURI: mongodb://mongo:27017/
+      DATABASE_NAME: ${DATABASE_NAME:-makespace-storage}
+      MONGOUSER: ${MONGOUSER:-makespace}
+      MONGOPASSWORD: ${MONGOPASSWORD:?set MONGOPASSWORD in .env}
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    restart: unless-stopped
+    environment:
+      STORAGE_API_URL: http://api:8000
+      STORAGE_WEB_URL: ${STORAGE_WEB_URL:-http://localhost:5000}
+    ports:
+      - "${WEB_PORT:-5000}:5000"
+    depends_on:
+      - api
+
+volumes:
+  mongo-data:

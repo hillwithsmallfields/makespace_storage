@@ -14,11 +14,14 @@ import decouple
 import pymongo
 
 from bson.objectid import ObjectId
-from fastapi import FastAPI, HTTPException, Request, Form, Body
+from fastapi import Depends, FastAPI, HTTPException, Request, Form, Body
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-storage_manager = FastAPI()
+from . import auth
+
+# Anyone may read; every other method needs a Keycloak login (see auth.py).
+storage_manager = FastAPI(dependencies=[Depends(auth.enforce_write_policy)])
 
 INVENTORY_BARCODE_BASE = "042000000000"
 INVENTORY_BARCODE_REGEXP = re.compile("^0?42[0-9]{10}$")
@@ -386,7 +389,7 @@ def dump_table(collection, left_keys):
 # All the paths which begin with commands must come before the path "/":
 
 @storage_manager.post("/load-types")
-async def load_types(request: Request):
+async def load_types(request: Request, user: auth.AdminUser):
     """Load data into the database types from a CSV POST body."""
     return load_table(types_data(),
                       (await request.body()).decode("utf-8"))
@@ -397,7 +400,7 @@ async def dump_types_data():
     return dump_table(types_data(), left_keys=['name', 'parent'])
 
 @storage_manager.post("/load-stock-types")
-async def load_stock_types(request: Request):
+async def load_stock_types(request: Request, user: auth.AdminUser):
     """Load data into the stock database types from a CSV POST body."""
     return load_table(stock_types_data(),
                       (await request.body()).decode("utf-8"))
@@ -408,7 +411,7 @@ async def dump_stock_types_data():
     return dump_table(stock_types_data(), left_keys=['barcode', 'name'])
 
 @storage_manager.post("/load-inventory")
-async def load_inventory(request: Request):
+async def load_inventory(request: Request, user: auth.AdminUser):
     """Load data into the database inventory from a CSV POST body."""
     return load_table(inventory_data(), (await request.body()).decode("utf-8"))
 
@@ -418,7 +421,7 @@ async def dump_inventory():
     return dump_table(inventory_data(), left_keys=['barcode', 'name', 'type', 'location', 'square'])
 
 @storage_manager.post("/load-stock")
-async def load_stock(request: Request):
+async def load_stock(request: Request, user: auth.AdminUser):
     """Load data into the database stock from a CSV POST body."""
     return load_table(stock_data(), (await request.body()).decode("utf-8"))
 
@@ -439,6 +442,12 @@ def search(pattern):
 async def root():
     """Return the root document of the API."""
     return {"message": "This is the makespace.org storage manager."}
+
+@storage_manager.get("/whoami")
+def whoami(user: auth.CurrentUser):
+    """Say who the caller is: their username, level ('user' or 'admin')
+    and membership number, or that they are anonymous."""
+    return user.as_dict() if user else {'authenticated': False, 'level': None}
 
 @storage_manager.get("/sites")
 async def sites():
@@ -807,7 +816,7 @@ async def move(item: Annotated[str, Form()],
         pass                    # TODO store stock separately, using quantity
 
 @storage_manager.post("/delete/{item}")
-async def delete_item(item: str):
+async def delete_item(item: str, user: auth.AdminUser):
     """Delete an item, specified by name or barcode."""
     deledendum = lookup(item)
     if deledendum is None:

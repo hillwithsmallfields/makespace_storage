@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# Add a person to the Keycloak realm, with their membership number and
+# storage level, using Keycloak's admin CLI inside the keycloak container.
+#
+#   scripts/add-storage-user USERNAME EMAIL FIRST LAST MEMBERSHIP_NUMBER [admin]
+#
+# They get a temporary password (printed) which they must change when
+# they first log in.  Everyone in the realm is a standard user; give
+# "admin" as the last argument to make them a storage admin too.
+#
+# To change someone's level or number later, use the admin console at
+# ${KEYCLOAK_URL}/admin/ (Users > the user > "Attributes" or "Role mapping",
+# filtering role mapping by client "storage-api").
+
+set -e
+
+if [ $# -lt 5 ]; then
+    sed -n '3,9p' "$0"
+    exit 1
+fi
+
+USERNAME=$1 EMAIL=$2 FIRST=$3 LAST=$4 MEMBER=$5 LEVEL=${6:-user}
+
+cd "$(dirname "$0")/.."
+if [ -f .env ]; then
+    set -a; . ./.env; set +a
+fi
+REALM=${KEYCLOAK_REALM:-makespace}
+
+# Overridable so this can be run against a Keycloak outside docker.
+KCADM=${KCADM:-docker compose exec -T keycloak /opt/keycloak/bin/kcadm.sh}
+KCSERVER=${KCSERVER:-http://localhost:8080}
+CONFIG=--config=/tmp/kcadm-$$.config
+
+$KCADM config credentials $CONFIG --server "$KCSERVER" --realm master \
+       --user "${KEYCLOAK_ADMIN:-admin}" --password "$KEYCLOAK_ADMIN_PASSWORD" >/dev/null
+
+$KCADM create users $CONFIG -r "$REALM" \
+       -s username="$USERNAME" -s email="$EMAIL" -s emailVerified=true \
+       -s firstName="$FIRST" -s lastName="$LAST" -s enabled=true \
+       -s "attributes.membership_number=[\"$MEMBER\"]"
+
+PASSWORD=$(head -c 12 /dev/urandom | base64 | tr -d '/+=')
+$KCADM set-password $CONFIG -r "$REALM" --username "$USERNAME" --new-password "$PASSWORD" --temporary
+
+if [ "$LEVEL" = admin ]; then
+    $KCADM add-roles $CONFIG -r "$REALM" --uusername "$USERNAME" --cclientid storage-api --rolename admin
+fi
+
+echo "Created $USERNAME ($LEVEL, membership number $MEMBER) with temporary password: $PASSWORD"

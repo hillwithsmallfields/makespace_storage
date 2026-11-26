@@ -8,16 +8,21 @@ and shelves) can be used to store other objects.
 
 ## Running with Docker
 
-The system runs as three containers: MongoDB, the API server and the
-web server.
+The system runs as five containers: MongoDB, the API server, the web
+server, and Keycloak (with its own PostgreSQL database) for logins.
 
 ```sh
 cp .env.example .env    # then set the passwords (letters and digits only)
 docker compose up -d --build
+scripts/add-storage-user jbloggs jo@example.org Jo Bloggs 1234 admin   # add people
 dev-scripts/loader      # optional: load the sample data via 127.0.0.1:8000
 ```
 
-The web pages are then at `http://<host>:5000`.  The API is published
+The web pages are then at `http://<host>:5000`.  Anyone can look
+things up; changing anything needs a Keycloak login, in the web pages
+and in the API.  See [doc/authentication.md](doc/authentication.md)
+for the user levels, membership numbers, and the Python client module
+`src/client/storage_client.py`.  The API is published
 only on the host's loopback interface.  The database lives in the
 `mongo-data` volume; the application database user is created the
 first time MongoDB starts with an empty volume.

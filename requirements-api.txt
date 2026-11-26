@@ -1,6 +1,7 @@
 uv
 fastapi[standard]
 pymongo
+pyjwt[crypto]
 python-decouple
 requests
 python-barcode

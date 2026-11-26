@@ -1,10 +1,22 @@
 #!/bin/bash
 
-echo loading types
-curl http://127.0.0.1:8000/load-types -X POST -H "Content-Type: text/csv" --data-binary @dev-data/initial-types.csv
-echo loading stock types
-curl http://127.0.0.1:8000/load-stock-types -X POST -H "Content-Type: text/csv" --data-binary @dev-data/initial-stock-types.csv
-echo loading inventory
-curl http://127.0.0.1:8000/load-inventory -X POST -H "Content-Type: text/csv" --data-binary @dev-data/initial-inventory.csv
-echo loading stock
-curl http://127.0.0.1:8000/load-stock -X POST -H "Content-Type: text/csv" --data-binary @dev-data/initial-stock.csv
+# Load the sample data through the API.  Loading is an admin-only
+# operation, so this logs in as the storage-maintenance service
+# account, using the secret from .env.  (Or set STORAGE_CLIENT_ID and
+# STORAGE_CLIENT_SECRET yourself to use another admin-level client.)
+
+cd "$(dirname "$0")/.." || exit 1
+
+if [ -f .env ]; then
+    set -a; . ./.env; set +a
+fi
+
+export STORAGE_API_URL=${STORAGE_API_URL:-http://127.0.0.1:${API_PORT:-8000}}
+export KEYCLOAK_URL=${KEYCLOAK_URL:-http://127.0.0.1:${KEYCLOAK_PORT:-8080}}
+export STORAGE_CLIENT_ID=${STORAGE_CLIENT_ID:-storage-maintenance}
+export STORAGE_CLIENT_SECRET=${STORAGE_CLIENT_SECRET:-$STORAGE_MAINTENANCE_CLIENT_SECRET}
+
+for kind in types stock-types inventory stock; do
+    echo loading $kind
+    python3 src/client/storage_client.py load $kind dev-data/initial-$kind.csv
+done

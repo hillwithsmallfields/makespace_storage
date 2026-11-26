@@ -73,4 +73,9 @@ td.attr_table_value {
     font-weight: normal;
 }
 
+div.login_status {
+    font-size: smaller;
+    text-align: right;
+}
+
 </style>

@@ -15,7 +15,8 @@ The name of the item.  This must be unique.
 
 ## type
 
-The type of the item.  This should be the same as an entry in the `type` column of the types collection.
+The type of the item.  This should be the same as the `name` of an
+entry in the `type` column of the types collection.
 
 ## location
 

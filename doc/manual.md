@@ -119,9 +119,6 @@ picked barcodes for the system.
 Exceptions to rules
 -------------------
 
-Classroom-type chairs should probably count as stock, as they neither
-need a service schedule nor are good storage locations.
-
 If given a number shorter than 13 digits to identify an item, as many
 digits as needed from "0420000000" are prepended to it; this lets us
 continue to use our shorter PAT testing labels.

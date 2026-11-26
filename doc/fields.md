@@ -70,11 +70,12 @@ this specific piece of equipment).
 
 ## Supplier_page
 
-The title for the page for this equipment at the company we bought it from.
+The title for the page for this equipment or stock at the company we
+bought it from.
 
 ## Supplier_page_URL
 
-The supplier's page URL for this type of equipment.
+The supplier's page URL for this type of equipment or stock.
 
 ## Date_acquired
 

@@ -1,6 +1,14 @@
 Plans and possibilities for the asset system
 ============================================
 
+Stock depletion tracking
+------------------------
+
+It should be quite easy to add a page that will list any stock items
+whose current stock level has dropped down to their set trigger level
+for re-ordering.  The `Supplier_page_URL` field of the database can be
+shown to help with re-ordering.
+
 History
 -------
 
@@ -10,6 +18,27 @@ concerns, it may be useful to store *who* last moved or altered it.
 
 We could also keep a history of all such changes to each item; this
 won't be much data by current standards.
+
+These fields will be set automatically, and not made available in the
+item edit form.
+
+Mobile app
+----------
+
+This would presumably be an extension to Makespace's existing mobile
+app.  It would present much the same information as the web interface,
+but with integration of the mobile's barcode scanning API.
+
+Handheld scanner terminals
+--------------------------
+
+I think it would be useful to have handheld scanner terminals in the
+space (perhaps several of them), each of which would have a
+wifi-connected processor, a scan module, and either a touch screen or
+a plain screen with buttons; and also probably wireless charging.
+These should be handy for marking where items are stored, and if
+paired with bluetooth keyboards at the charging stations could be used
+for general lookup.
 
 Member items
 ------------
@@ -21,7 +50,8 @@ digits).  The database would track these in a separate collection, and
 the API would include an endpoint to allocate the next unused number
 for a given member.  (Members should also be able to allocate numbers
 manually, particularly for the case where they run an asset tracking
-system such as this one at home or in their organisation.)
+system such as this one at home or in their organisation and so may
+have numbered their assets already.)
 
 Then when a member presents their fob to the Badger and asks for a
 storage label, the Badger uses the asset API to get a number within
